@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading;
 
@@ -12,8 +15,6 @@ namespace SharpNetwork
     {
         protected INetworkFilter m_IoFilter = null;
         protected INetworkEventHandler m_IoHandler = null;
-
-        protected Decimal m_ServerLoading = 0;
 
         Thread m_ListenThread = null;
         Socket m_ListenSocket = null;
@@ -36,6 +37,8 @@ namespace SharpNetwork
         Int32 m_NextSessionID = 0;
 
         Int32 m_IoBufferSize = 1024 * 8; // default size is 8k
+
+        X509Certificate2 m_Cert = null;
 
         SessionGroup m_SessionGroup = new SessionGroup();
 
@@ -96,14 +99,13 @@ namespace SharpNetwork
             m_MaxClientCount = value;
         }
 
-        public virtual decimal GetServerLoading()
+        public X509Certificate2 GetCert()
         {
-            return m_ServerLoading;
+            return m_Cert;
         }
-
-        public virtual void UpdateServerLoading(bool update)
+        public void SetCert(X509Certificate2 cert)
         {
-            if (!update) m_ServerLoading = 0;
+            m_Cert = cert;
         }
 
         public int GetState()
@@ -145,18 +147,12 @@ namespace SharpNetwork
 
         public int GetIoBufferSize()
         {
-            if (m_ListenSocket != null) return m_ListenSocket.ReceiveBufferSize;
-            else return m_IoBufferSize;
+            return m_IoBufferSize;
         }
 
         public void SetIoBufferSize(int value)
         {
             if (value <= 0) return;
-            if (m_ListenSocket != null)
-            {
-                m_ListenSocket.ReceiveBufferSize = value;
-                m_ListenSocket.SendBufferSize = value;
-            }
             m_IoBufferSize = value;
         }
 
@@ -225,6 +221,8 @@ namespace SharpNetwork
                 return;
             }
 
+            // set every new session's io buffer size to a global value by default
+            // but you still can change it in every session's OnConnect event function
             socket.ReceiveBufferSize = m_IoBufferSize;
             socket.SendBufferSize = m_IoBufferSize;
 
@@ -235,11 +233,37 @@ namespace SharpNetwork
             lock (m_SessionGroup)
             {
                 m_NextSessionID++;
-                session = new Session(m_NextSessionID, socket, m_IoHandler, m_IoFilter);
+                session = new Session(m_NextSessionID, socket, m_IoHandler, m_IoFilter, m_Cert != null);
                 session.SetSessionGroup(m_SessionGroup);
             }
 
-            if (session != null) session.Open();
+            if (session != null)
+            {
+                Stream stream = session.GetStream();
+                if (stream != null)
+                {
+                    if (stream is SslStream && m_Cert != null)
+                    {
+                        (stream as SslStream).BeginAuthenticateAsServer(m_Cert, 
+                                new AsyncCallback(AuthenticateCallback), session);
+                    }
+                    else if (stream is NetworkStream)
+                    {
+                        if (session != null) session.Open();
+                    }
+                }
+            }
+        }
+
+        public void AuthenticateCallback(IAsyncResult ar)
+        {
+            Session session = (Session)ar.AsyncState;
+            Stream stream = session == null ? null : session.GetStream();
+            if (stream != null && stream is SslStream)
+            {
+                (stream as SslStream).EndAuthenticateAsServer(ar);
+                if (session != null) session.Open();
+            }
         }
 
         protected bool Listen(IPEndPoint localEndPoint, int localPort)
@@ -280,24 +304,7 @@ namespace SharpNetwork
 
         public virtual bool Start(int port)
         {
-            // Establish the local endpoint for the socket.
-            /*
-            IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
-            IPAddress ipAddress = null;
-            foreach (IPAddress addr in ipHostInfo.AddressList)
-            {
-                if (addr.AddressFamily == AddressFamily.InterNetwork)
-                {
-                    ipAddress = addr;
-                    break;
-                }
-            }
-
-            if (ipAddress == null) return false;
-            */
-
             return Start("", port);
-
         }
 
         public bool Start(string ipstr, int port)
@@ -355,8 +362,6 @@ namespace SharpNetwork
                     {
                         m_SessionGroup.StartCheckingIdle();
                     }
-
-                    UpdateServerLoading(true);
                 }
                 else
                 {
@@ -426,8 +431,6 @@ namespace SharpNetwork
                 m_SessionGroup.Clear();
                 m_NextSessionID = 0;
             }
-
-            UpdateServerLoading(false);
         }
 
         public int GetSessionCount()

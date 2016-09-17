@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
 using System.Text;
 
@@ -27,6 +29,8 @@ namespace SharpNetwork
         // default size is 8k
         Int32 m_IoBufferSize = 1024 * 8;
 
+        RemoteCertificateValidationCallback m_ValidationCallback = null;
+
         SessionGroup m_SessionGroup = new SessionGroup();
 
         public INetworkEventHandler GetIoHandler()
@@ -47,6 +51,11 @@ namespace SharpNetwork
         public virtual void SetIoFilter(INetworkFilter filter)
         {
             m_IoFilter = filter;
+        }
+
+        public virtual void SetValidationCallback(RemoteCertificateValidationCallback callback)
+        {
+            m_ValidationCallback = callback;
         }
 
         public string GetRemoteIp()
@@ -94,19 +103,15 @@ namespace SharpNetwork
 
         public int GetIoBufferSize()
         {
-            if (m_Session != null && m_Session.GetSocket() != null)
-                return m_Session.GetSocket().ReceiveBufferSize;
-
             return m_IoBufferSize;
         }
 
         public void SetIoBufferSize(int value)
         {
             if (value <= 0) return;
-            if (m_Session != null && m_Session.GetSocket() != null)
+            if (m_Session != null)
             {
-                m_Session.GetSocket().ReceiveBufferSize = value;
-                m_Session.GetSocket().SendBufferSize = value;
+                m_Session.SetBufferSize(Session.IO_RECV_SEND, value);
             }
             m_IoBufferSize = value;
         }
@@ -156,7 +161,7 @@ namespace SharpNetwork
                 {
                     try
                     {
-                        // and now, input string may be a domain name ...
+                        // and now, input string might be a domain name ...
 
                         IPHostEntry ipHostInfo = Dns.GetHostEntry(svrIp);
                         foreach (IPAddress addr in ipHostInfo.AddressList)
@@ -208,6 +213,8 @@ namespace SharpNetwork
 
             if (socket == null || remoteEP == null || ipAddress == null) return;
 
+            // set session's io buffer size to a global value by default
+            // but you still can change them with different values in session's OnConnect event function
             socket.ReceiveBufferSize = m_IoBufferSize;
             socket.SendBufferSize = m_IoBufferSize;
 
@@ -224,11 +231,27 @@ namespace SharpNetwork
                     m_RemoteIp = IPAddress.Parse(ipAddress.ToString()).ToString();
                     m_RemotePort = svrPort;
 
-                    m_Session = new Session(m_ClientId, socket, m_IoHandler, m_IoFilter);
+                    m_Session = m_ValidationCallback == null ? new Session(m_ClientId, socket, m_IoHandler, m_IoFilter)
+                                    : new Session(m_ClientId, socket, m_IoHandler, m_IoFilter, m_ValidationCallback);
                     m_Session.SetSessionGroup(m_SessionGroup);
                     m_SessionId = Convert.ToString(m_ClientId);
 
-                    result = socket.BeginConnect(remoteEP, new AsyncCallback(ConnectCallback), this);
+                    if (m_Session != null)
+                    {
+                        Stream stream = m_Session.GetStream();
+                        if (stream != null)
+                        {
+                            if (stream is SslStream)
+                            {
+                                result = (stream as SslStream).BeginAuthenticateAsClient(svrIp, // it should be a domain name ...
+                                    new AsyncCallback(ConnectCallback), this);
+                            }
+                            else if (stream is NetworkStream)
+                            {
+                                result = socket.BeginConnect(remoteEP, new AsyncCallback(ConnectCallback), this);
+                            }
+                        }
+                    }
                 }
 
                 if (result != null && timeout > 0) success = result.AsyncWaitHandle.WaitOne(timeout * 1000, true);
@@ -279,7 +302,18 @@ namespace SharpNetwork
                     {
                         if (client.m_Session != null)
                         {
-                            client.m_Session.GetSocket().EndConnect(ar);
+                            Stream stream = client.m_Session.GetStream();
+                            if (stream != null)
+                            {
+                                if (stream is SslStream)
+                                {
+                                    (stream as SslStream).EndAuthenticateAsClient(ar);
+                                }
+                                else if (stream is NetworkStream)
+                                {
+                                    client.m_Session.GetSocket().EndConnect(ar);
+                                }
+                            }
 
                             client.m_State = 1;
 

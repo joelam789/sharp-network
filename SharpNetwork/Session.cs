@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 
@@ -19,15 +21,13 @@ namespace SharpNetwork
         public const int IO_RECV        =  1;
         public const int IO_SEND        =  2;
 
-        public const int OP_ASYNC       =  1;
-        public const int OP_CONCURRENT  =  2;
+        public const int ACT_KEEP_DEFAULT = 0;
+        public const int ACT_KEEP_OLD     = 1;
+        public const int ACT_KEEP_NEW     = 2;
 
-        public const int PROTOCOL_TYPE_UNKNOWN = 0;
-        public const int PROTOCOL_TYPE_NORMAL = 1;
-        //public const int PROTOCOL_TYPE_HTTP = 2;
-        //public const int PROTOCOL_TYPE_WEBSOCK = 3;
+        public Object UserData { get; set; }
 
-        private Socket m_Socket = null;
+        private Stream m_Stream = null;
 
         private INetworkFilter m_IoFilter = null;
         private INetworkEventHandler m_IoHandler = null;
@@ -39,12 +39,13 @@ namespace SharpNetwork
 
         private Int32 m_State = -1;
 
-        private Int32 m_ProtocolType = 0;
-
         private Boolean m_IsGoingToClose = false;
 
         private Int32 m_MaxReadQueueSize = 1024;
         private Int32 m_MaxWriteQueueSize = 0;
+
+        private Int32 m_FitReadQueueAction = ACT_KEEP_DEFAULT;
+        private Int32 m_FitWriteQueueAction = ACT_KEEP_DEFAULT;
 
         private Int32 m_ReadSize = 0;
         private Byte[] m_ReadBuffer = null;
@@ -60,15 +61,35 @@ namespace SharpNetwork
         private Queue<IoDataStream> m_OutgoingMessageQueue = new Queue<IoDataStream>();
         private Queue<Object> m_IncomingMessageQueue = new Queue<Object>();
 
+        private int m_SkippableOutgoingMessageCount = 0;
+
         private SessionGroup m_SessionGroup = null;
 
         
-        public Session(int id, Socket socket, INetworkEventHandler handler, INetworkFilter filter)
+        public Session(int id, Socket socket, INetworkEventHandler handler, INetworkFilter filter, bool needSsl = false)
         {
             m_Id = id;
-            m_Socket = socket;
+
+            m_Stream = new NetworkStream(socket, true);
+            if (needSsl) m_Stream = new SslStream(m_Stream, false);
+
             m_IoHandler = handler;
             m_IoFilter = filter;
+
+            UserData = null;
+        }
+
+        public Session(int id, Socket socket, INetworkEventHandler handler, INetworkFilter filter, 
+                        RemoteCertificateValidationCallback validationCallback)
+        {
+            m_Id = id;
+
+            m_Stream = new SslStream(new NetworkStream(socket, true), false, validationCallback);
+
+            m_IoHandler = handler;
+            m_IoFilter = filter;
+
+            UserData = null;
         }
 
         public int GetId()
@@ -81,9 +102,36 @@ namespace SharpNetwork
             return m_State;
         }
 
+        public Stream GetStream()
+        {
+            return m_Stream;
+        }
+
         public Socket GetSocket()
         {
-            return m_Socket;
+            Socket socket = null;
+
+            if (m_Stream != null)
+            {
+                if (m_Stream is NetworkStream)
+                {
+                    socket = m_Stream.GetType()
+                                            .GetProperty("Socket", BindingFlags.NonPublic | BindingFlags.Instance)
+                                            .GetValue(m_Stream, null) as Socket;
+                }
+                else if (m_Stream is SslStream)
+                {
+                    var stream = m_Stream.GetType()
+                                            .GetProperty("InnerStream", BindingFlags.NonPublic | BindingFlags.Instance)
+                                            .GetValue(m_Stream, null);
+                    if (stream != null)
+                        socket = stream.GetType()
+                                            .GetProperty("Socket", BindingFlags.NonPublic | BindingFlags.Instance)
+                                            .GetValue(stream, null) as Socket;
+                }
+            }
+
+            return socket;
         }
 
         public INetworkEventHandler GetIoHandler()
@@ -106,14 +154,35 @@ namespace SharpNetwork
             return m_RemotePort;
         }
 
-        public int GetProtocolType()
+        public int GetBufferSize(int iotype)
         {
-            return m_ProtocolType;
+            Socket socket = GetSocket();
+
+            if (socket != null)
+            {
+                if (iotype == Session.IO_RECV) return socket.ReceiveBufferSize;
+                else if (iotype == Session.IO_SEND) return socket.SendBufferSize;
+            }
+
+            return 0;
         }
 
-        public void SetProtocolType(int flag)
+        public void SetBufferSize(int iotype, int value)
         {
-            m_ProtocolType = flag;
+            if (value <= 0) return;
+
+            Socket socket = GetSocket();
+
+            if (socket != null)
+            {
+                if (iotype == Session.IO_RECV) socket.ReceiveBufferSize = value;
+                else if (iotype == Session.IO_SEND) socket.SendBufferSize = value;
+                else if (iotype == Session.IO_RECV_SEND)
+                {
+                    socket.ReceiveBufferSize = value;
+                    socket.SendBufferSize = value;
+                }
+            }
         }
 
         public int GetMaxMessageQueueSize(int optype)
@@ -133,6 +202,25 @@ namespace SharpNetwork
             }
             else if (optype == Session.IO_RECV) m_MaxReadQueueSize = value;
             else if (optype == Session.IO_SEND) m_MaxWriteQueueSize = value;
+        }
+
+        public int GetQueueOverflowAction(int optype)
+        {
+            if (optype == Session.IO_RECV) return m_FitReadQueueAction;
+            else if (optype == Session.IO_SEND) return m_FitWriteQueueAction;
+
+            return 0;
+        }
+
+        public void SetQueueOverflowAction(int optype, int value)
+        {
+            if (optype == 0)
+            {
+                m_FitReadQueueAction = value;
+                m_FitWriteQueueAction = value;
+            }
+            else if (optype == Session.IO_RECV) m_FitReadQueueAction = value;
+            else if (optype == Session.IO_SEND) m_FitWriteQueueAction = value;
         }
 
         public int GetSessionCount()
@@ -177,13 +265,15 @@ namespace SharpNetwork
             m_LastReadTime = DateTime.Now;
             m_LastWriteTime = DateTime.Now;
 
-            if (m_Socket != null)
+            Socket socket = GetSocket();
+
+            if (socket != null)
             {
                 try
                 {
                     m_State = 1;
-                    m_RemoteIp = IPAddress.Parse(((IPEndPoint)m_Socket.RemoteEndPoint).Address.ToString()).ToString();
-                    m_RemotePort = ((IPEndPoint)m_Socket.RemoteEndPoint).Port;
+                    m_RemoteIp = IPAddress.Parse(((IPEndPoint)socket.RemoteEndPoint).Address.ToString()).ToString();
+                    m_RemotePort = ((IPEndPoint)socket.RemoteEndPoint).Port;
                 }
                 catch { }
             }
@@ -193,6 +283,7 @@ namespace SharpNetwork
             {
                 m_OutgoingMessageQueue.Clear();
             }
+            m_SkippableOutgoingMessageCount = 0;
 
             // make sure the queue is clean
             if (m_IncomingMessageQueue.Count > 0)
@@ -204,10 +295,14 @@ namespace SharpNetwork
 
             try
             {
-                if (m_Socket != null)
+                if (socket != null)
                 {
-                    if (m_ReadBuffer == null || m_ReadBuffer.Length <= 0) m_ReadBuffer = new Byte[m_Socket.ReceiveBufferSize];
-                    m_Socket.BeginReceive(m_ReadBuffer, 0, m_ReadBuffer.Length, 0, new AsyncCallback(ReceiveCallback), this);
+                    if (m_ReadBuffer == null || m_ReadBuffer.Length <= 0) m_ReadBuffer = new Byte[socket.ReceiveBufferSize];
+                }
+
+                if (m_Stream != null)
+                {
+                    m_Stream.BeginRead(m_ReadBuffer, 0, m_ReadBuffer.Length, new AsyncCallback(ReceiveCallback), this);
                 }
             }
             catch (Exception ex)
@@ -233,10 +328,12 @@ namespace SharpNetwork
 
                 session.m_LastReadTime = DateTime.Now;
 
-                if (session.m_Socket != null && session.m_State > 0)
+                if (session.m_State > 0)
                 {
-                    // Read data from the remote device.
-                    session.m_ReadSize = session.m_Socket.EndReceive(arg);
+                    if (session.m_Stream != null)
+                    {
+                        session.m_ReadSize = session.m_Stream.EndRead(arg);
+                    }
                     if (session.m_ReadSize <= 0) needClose = true;
                 }
 
@@ -327,7 +424,15 @@ namespace SharpNetwork
                                 if (queueSize >= m_MaxReadQueueSize)
                                 {
                                     full = true;
-                                    break;
+
+                                    if (m_FitReadQueueAction == ACT_KEEP_NEW)
+                                    {
+                                        m_IncomingMessageQueue.Dequeue(); // give up the old one ...
+                                    }
+                                    else
+                                    {
+                                        break;
+                                    }
                                 }
                             }
                             m_IncomingMessageQueue.Enqueue(obj);
@@ -336,7 +441,7 @@ namespace SharpNetwork
 
                         if (full)
                         {
-                            if (m_IoHandler != null)
+                            if (m_FitReadQueueAction == ACT_KEEP_DEFAULT && m_IoHandler != null)
                             {
                                 try
                                 {
@@ -350,18 +455,24 @@ namespace SharpNetwork
                     }
 
                     // next round
-                    if (m_Socket != null && m_State > 0)
+                    if (m_State > 0)
                     {
-                        m_Socket.BeginReceive(m_ReadBuffer, 0, m_ReadBuffer.Length, 0, new AsyncCallback(ReceiveCallback), this);
+                        if (m_Stream != null)
+                        {
+                            m_Stream.BeginRead(m_ReadBuffer, 0, m_ReadBuffer.Length, new AsyncCallback(ReceiveCallback), this);
+                        }
                     }
 
                 }
                 else
                 {
                     // next round
-                    if (m_Socket != null && m_State > 0)
+                    if (m_State > 0)
                     {
-                        m_Socket.BeginReceive(m_ReadBuffer, 0, m_ReadBuffer.Length, 0, new AsyncCallback(ReceiveCallback), this);
+                        if (m_Stream != null)
+                        {
+                            m_Stream.BeginRead(m_ReadBuffer, 0, m_ReadBuffer.Length, new AsyncCallback(ReceiveCallback), this);
+                        }
                     }
                 }
                
@@ -398,26 +509,26 @@ namespace SharpNetwork
                 if (m_IoHandler != null) { try { m_IoHandler.OnDisconnect(this); } catch { } }
             }
 
-            if (m_Socket != null)
+            if (m_Stream != null)
             {
                 m_State = 0;
                 try
                 {
-                    try { m_Socket.Shutdown(SocketShutdown.Both); }
+                    //try { m_Socket.Shutdown(SocketShutdown.Both); }
+                    //catch { }
+                    try { m_Stream.Close(); }
                     catch { }
-                    try { m_Socket.Close(); }
-                    catch { }
-                    try { m_Socket.Dispose(); }
+                    try { m_Stream.Dispose(); }
                     catch { }
                 }
                 catch { }
                 m_State = -1;
-                m_Socket = null;
+                m_Stream = null;
             }
             else
             {
                 m_State = -1;
-                m_Socket = null;
+                m_Stream = null;
             }
 
             // clean up the queue
@@ -425,6 +536,7 @@ namespace SharpNetwork
             {
                 m_OutgoingMessageQueue.Clear();
             }
+            m_SkippableOutgoingMessageCount = 0;
 
             // clean up the queue
             if (m_IncomingMessageQueue.Count > 0)
@@ -445,16 +557,18 @@ namespace SharpNetwork
 
         public void Send(Object message)
         {
-            if (m_Socket == null || m_State <= 0 || m_IsGoingToClose || message == null) return;
+            if (m_Stream == null || m_State <= 0 || m_IsGoingToClose || message == null) return;
 
             int queueSize = 0;
+            bool full = false;
             if (m_MaxWriteQueueSize > 0) // need to check queue size
             {
                 queueSize = m_OutgoingMessageQueue.Count;
             }
             if (m_MaxWriteQueueSize > 0 && queueSize >= m_MaxWriteQueueSize)
             {
-                if (m_IoHandler != null)
+                full = true;
+                if (m_FitWriteQueueAction == ACT_KEEP_DEFAULT && m_IoHandler != null)
                 {
                     try
                     {
@@ -462,7 +576,7 @@ namespace SharpNetwork
                     }
                     catch { }
                 }
-                return;
+                if (m_FitWriteQueueAction == ACT_KEEP_DEFAULT || m_FitWriteQueueAction == ACT_KEEP_OLD) return;
             }
 
             MemoryStream stream = new MemoryStream();
@@ -499,6 +613,7 @@ namespace SharpNetwork
             {
                 bool sending = m_OutgoingMessageQueue.Count > 0;
                 m_OutgoingMessageQueue.Enqueue(new IoDataStream(message, stream));
+                if (full && m_FitWriteQueueAction == ACT_KEEP_NEW) m_SkippableOutgoingMessageCount++;
                 if (!sending) msg = m_OutgoingMessageQueue.Peek();
             }
 
@@ -508,7 +623,7 @@ namespace SharpNetwork
 
         private void DoSend(IoDataStream message)
         {
-            if (m_Socket == null || m_State <= 0 || message == null) return;
+            if (m_Stream == null || m_State <= 0 || message == null) return;
 
             Object msg = message.IoData;
             MemoryStream stream = message.IoStream;
@@ -519,11 +634,11 @@ namespace SharpNetwork
 
                 try
                 {
-                    if (m_Socket != null)
+                    if (m_Stream != null)
                     {
                         SessionContext info = new SessionContext(this, msg);
-                        m_Socket.BeginSend(stream.ToArray(),
-                            0, Convert.ToInt32(stream.Length), 0,
+                        m_Stream.BeginWrite(stream.ToArray(),
+                            0, Convert.ToInt32(stream.Length),
                                 new AsyncCallback(SendCallback), info);
                     }
                 }
@@ -549,16 +664,16 @@ namespace SharpNetwork
             Object data = info.Data;
             try
             {
-                int bytesSent = 0;
-
                 session.m_LastWriteTime = DateTime.Now;
 
                 // Complete sending the data to the remote device.
-                if (session.m_Socket != null) bytesSent = session.m_Socket.EndSend(arg);
+                int bytesSent = 1;
+                //if (session.m_Socket != null) bytesSent = session.m_Socket.EndSend(arg);
+                if (session.m_Stream != null) session.m_Stream.EndWrite(arg);
 
-                if (bytesSent > 0 && session.m_IoHandler != null)
+                if (bytesSent > 0)
                 {
-                    if (session.m_State > 0) session.m_IoHandler.OnSend(session, data);
+                    if (session.m_IoHandler != null && session.m_State > 0) session.m_IoHandler.OnSend(session, data);
                 }
 
             }
@@ -590,6 +705,12 @@ namespace SharpNetwork
                 {
                     // before send out a new message, we must remove the old one first
                     m_OutgoingMessageQueue.Dequeue();
+
+                    while (m_SkippableOutgoingMessageCount > 0 && m_OutgoingMessageQueue.Count > 0)
+                    {
+                        m_SkippableOutgoingMessageCount--;
+                        m_OutgoingMessageQueue.Dequeue(); // just process the new ones
+                    }
 
                     // try to find some messages which are still waiting
                     if (m_OutgoingMessageQueue.Count > 0) msg = m_OutgoingMessageQueue.Peek();

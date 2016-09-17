@@ -37,7 +37,7 @@ namespace SharpNetwork.SimpleWebSocket
             return secWebSocketAccept;
         }
 
-        private int m_MaxMsgSize = 1024 * 128; // 128K
+        private int m_MaxMsgSize = 1024 * 256; // 256K
 
         public MessageCodec(int maxMsgSize = 0)
         {
@@ -321,12 +321,9 @@ namespace SharpNetwork.SimpleWebSocket
                     }
                     else
                     {
-                        if (curpos > m_MaxMsgSize)
-                        {
-                            session.Close();
-                            return false;
-                        }
-                        stream.Position = orgpos;
+                        if (curpos > m_MaxMsgSize) session.Close();
+                        else stream.Position = orgpos;
+                        return false;
                     }
                 }
 
@@ -367,7 +364,7 @@ namespace SharpNetwork.SimpleWebSocket
                             // first byte ...
                             sbyte opcode = (sbyte)(bytes[0] & 0x0f);
 
-                            switch (opcode)
+                            switch (opcode) // not support 0x00 for now ...
                             {
                                 case 0x08:
                                     session.Close();
