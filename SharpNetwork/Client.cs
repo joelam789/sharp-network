@@ -26,8 +26,12 @@ namespace SharpNetwork
         String m_RemoteIp = "";
         Int32 m_RemotePort = 0;
 
+        String m_TargetServer = "";
+
         // default size is 8k
         Int32 m_IoBufferSize = 1024 * 8;
+
+        Socket m_Socket = null;
 
         RemoteCertificateValidationCallback m_ValidationCallback = null;
 
@@ -56,6 +60,11 @@ namespace SharpNetwork
         public virtual void SetValidationCallback(RemoteCertificateValidationCallback callback)
         {
             m_ValidationCallback = callback;
+        }
+
+        public virtual bool HasValidationCallback()
+        {
+            return m_ValidationCallback != null;
         }
 
         public string GetRemoteIp()
@@ -140,7 +149,6 @@ namespace SharpNetwork
         {
             IPEndPoint remoteEP = null;
             IPAddress ipAddress = null;
-            Socket socket = null;
 
             try
             {
@@ -192,10 +200,12 @@ namespace SharpNetwork
 
                 Disconnect();
 
+                m_TargetServer = svrIp;
+
                 remoteEP = new IPEndPoint(ipAddress, svrPort);
 
                 // Create a TCP/IP socket.
-                socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                m_Socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
             }
             catch (Exception e)
@@ -211,12 +221,12 @@ namespace SharpNetwork
                 Disconnect();
             }
 
-            if (socket == null || remoteEP == null || ipAddress == null) return;
+            if (m_Socket == null || remoteEP == null || ipAddress == null) return;
 
             // set session's io buffer size to a global value by default
             // but you still can change them with different values in session's OnConnect event function
-            socket.ReceiveBufferSize = m_IoBufferSize;
-            socket.SendBufferSize = m_IoBufferSize;
+            m_Socket.ReceiveBufferSize = m_IoBufferSize;
+            m_Socket.SendBufferSize = m_IoBufferSize;
 
             // Connect to the remote endpoint.
             try
@@ -231,27 +241,7 @@ namespace SharpNetwork
                     m_RemoteIp = IPAddress.Parse(ipAddress.ToString()).ToString();
                     m_RemotePort = svrPort;
 
-                    m_Session = m_ValidationCallback == null ? new Session(m_ClientId, socket, m_IoHandler, m_IoFilter)
-                                    : new Session(m_ClientId, socket, m_IoHandler, m_IoFilter, m_ValidationCallback);
-                    m_Session.SetSessionGroup(m_SessionGroup);
-                    m_SessionId = Convert.ToString(m_ClientId);
-
-                    if (m_Session != null)
-                    {
-                        Stream stream = m_Session.GetStream();
-                        if (stream != null)
-                        {
-                            if (stream is SslStream)
-                            {
-                                result = (stream as SslStream).BeginAuthenticateAsClient(svrIp, // it should be a domain name ...
-                                    new AsyncCallback(ConnectCallback), this);
-                            }
-                            else if (stream is NetworkStream)
-                            {
-                                result = socket.BeginConnect(remoteEP, new AsyncCallback(ConnectCallback), this);
-                            }
-                        }
-                    }
+                    result = m_Socket.BeginConnect(remoteEP, new AsyncCallback(ConnectCallback), this);
                 }
 
                 if (result != null && timeout > 0) success = result.AsyncWaitHandle.WaitOne(timeout * 1000, true);
@@ -300,6 +290,63 @@ namespace SharpNetwork
                 {
                     lock (client.m_SessionGroup)
                     {
+                        if (client.m_Socket != null)
+                        {
+                            client.m_Socket.EndConnect(ar);
+
+                            client.m_Session = client.m_ValidationCallback == null
+                                    ? new Session(client.m_ClientId, client.m_Socket, client.m_IoHandler, client.m_IoFilter)
+                                    : new Session(client.m_ClientId, client.m_Socket, client.m_IoHandler, client.m_IoFilter, client.m_ValidationCallback);
+                            client.m_Session.SetSessionGroup(client.m_SessionGroup);
+                            client.m_SessionId = Convert.ToString(client.m_ClientId);
+
+                            if (client.m_Session != null)
+                            {
+                                Stream stream = client.m_Session.GetStream();
+                                if (stream != null)
+                                {
+                                    if (stream is SslStream)
+                                    {
+                                        var result = (stream as SslStream).BeginAuthenticateAsClient(client.m_TargetServer, // it should be a domain name ...
+                                                        new AsyncCallback(AuthenticateCallback), client);
+                                        if (result == null) throw new Exception("Failed to run BeginAuthenticateAsClient()");
+                                    }
+                                    else if (stream is NetworkStream)
+                                    {
+                                        client.m_State = 1;
+                                        client.m_Session.Open();
+                                        client.m_SessionGroup.StartCheckingIdle();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    if (client.m_IoHandler != null)
+                    {
+                        try
+                        {
+                            client.m_IoHandler.OnError(client.m_Session, Session.ERROR_CONNECT, e.Message);
+                        }
+                        catch { }
+                    }
+                    client.Disconnect();
+                }
+            }
+        }
+
+        private static void AuthenticateCallback(IAsyncResult ar)
+        {
+            Client client = (Client)ar.AsyncState;
+            if (client != null)
+            {
+                // Complete the connection.
+                try
+                {
+                    lock (client.m_SessionGroup)
+                    {
                         if (client.m_Session != null)
                         {
                             Stream stream = client.m_Session.GetStream();
@@ -308,18 +355,12 @@ namespace SharpNetwork
                                 if (stream is SslStream)
                                 {
                                     (stream as SslStream).EndAuthenticateAsClient(ar);
-                                }
-                                else if (stream is NetworkStream)
-                                {
-                                    client.m_Session.GetSocket().EndConnect(ar);
+                                    client.m_State = 1;
+                                    client.m_Session.Open();
+                                    client.m_SessionGroup.StartCheckingIdle();
                                 }
                             }
-
-                            client.m_State = 1;
-
-                            client.m_Session.Open();
                         }
-                        client.m_SessionGroup.StartCheckingIdle();
                     }
                 }
                 catch (Exception e)
@@ -347,6 +388,7 @@ namespace SharpNetwork
                 m_SessionGroup.Clear();
                 //m_Session = null;
                 m_SessionId = "0";
+                m_Socket = null;
             }
         }
 
