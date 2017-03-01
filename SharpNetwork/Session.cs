@@ -61,8 +61,6 @@ namespace SharpNetwork
         private Queue<IoDataStream> m_OutgoingMessageQueue = new Queue<IoDataStream>();
         private Queue<Object> m_IncomingMessageQueue = new Queue<Object>();
 
-        private int m_SkippableOutgoingMessageCount = 0;
-
         private SessionGroup m_SessionGroup = null;
 
         
@@ -283,7 +281,6 @@ namespace SharpNetwork
             {
                 m_OutgoingMessageQueue.Clear();
             }
-            m_SkippableOutgoingMessageCount = 0;
 
             // make sure the queue is clean
             if (m_IncomingMessageQueue.Count > 0)
@@ -536,7 +533,6 @@ namespace SharpNetwork
             {
                 m_OutgoingMessageQueue.Clear();
             }
-            m_SkippableOutgoingMessageCount = 0;
 
             // clean up the queue
             if (m_IncomingMessageQueue.Count > 0)
@@ -558,16 +554,8 @@ namespace SharpNetwork
         public void Send(Object message)
         {
             if (m_Stream == null || m_State <= 0 || m_IsGoingToClose || message == null) return;
-
-            int queueSize = 0;
-            bool full = false;
-            if (m_MaxWriteQueueSize > 0) // need to check queue size
+            if (m_MaxWriteQueueSize > 0 && m_OutgoingMessageQueue.Count >= m_MaxWriteQueueSize)
             {
-                queueSize = m_OutgoingMessageQueue.Count;
-            }
-            if (m_MaxWriteQueueSize > 0 && queueSize >= m_MaxWriteQueueSize)
-            {
-                full = true;
                 if (m_FitWriteQueueAction == ACT_KEEP_DEFAULT && m_IoHandler != null)
                 {
                     try
@@ -612,8 +600,15 @@ namespace SharpNetwork
             lock (m_OutgoingMessageQueue)
             {
                 bool sending = m_OutgoingMessageQueue.Count > 0;
+
+                if (m_MaxWriteQueueSize > 0
+                    && m_OutgoingMessageQueue.Count >= m_MaxWriteQueueSize
+                    && m_FitWriteQueueAction == ACT_KEEP_NEW)
+                {
+                    m_OutgoingMessageQueue.Dequeue(); // just remove one old packet, even it's being sent
+                }
                 m_OutgoingMessageQueue.Enqueue(new IoDataStream(message, stream));
-                if (full && m_FitWriteQueueAction == ACT_KEEP_NEW) m_SkippableOutgoingMessageCount++;
+                
                 if (!sending) msg = m_OutgoingMessageQueue.Peek();
             }
 
@@ -705,12 +700,6 @@ namespace SharpNetwork
                 {
                     // before send out a new message, we must remove the old one first
                     m_OutgoingMessageQueue.Dequeue();
-
-                    while (m_SkippableOutgoingMessageCount > 0 && m_OutgoingMessageQueue.Count > 0)
-                    {
-                        m_SkippableOutgoingMessageCount--;
-                        m_OutgoingMessageQueue.Dequeue(); // just process the new ones
-                    }
 
                     // try to find some messages which are still waiting
                     if (m_OutgoingMessageQueue.Count > 0) msg = m_OutgoingMessageQueue.Peek();
