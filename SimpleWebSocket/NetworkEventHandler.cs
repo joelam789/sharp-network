@@ -13,8 +13,13 @@ namespace SharpNetwork.SimpleWebSocket
 
         public bool IsOrderlyProcess { get; set; }
 
-        public NetworkEventHandler(IMessageDispatcher messageHandlerManager)
-            : base(null)
+        public NetworkEventHandler(): base()
+        {
+            m_MessageHandlerManager = null;
+            IsOrderlyProcess = false;
+        }
+
+        public NetworkEventHandler(IMessageDispatcher messageHandlerManager): base()
         {
             m_MessageHandlerManager = messageHandlerManager;
             IsOrderlyProcess = false;
@@ -151,8 +156,7 @@ namespace SharpNetwork.SimpleWebSocket
         public event NetworkDataEvent OnPing;
         public event NetworkDataEvent OnPong;
 
-        public WebSocketEventPackage()
-            : base()
+        public WebSocketEventPackage(): base()
         {
             OnHandshake = null;
             OnPing = null;

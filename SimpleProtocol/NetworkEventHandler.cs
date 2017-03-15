@@ -14,8 +14,7 @@ namespace SharpNetwork.SimpleProtocol
 
         public bool AllowOrderlyProcess { get; set; }
 
-        public NetworkEventHandler(HandlerManager messageHandlerManager)
-            : base(null)
+        public NetworkEventHandler(HandlerManager messageHandlerManager): base()
         {
             m_MessageHandlerManager = messageHandlerManager;
             AllowOrderlyProcess = false;

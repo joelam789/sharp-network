@@ -93,6 +93,11 @@ namespace SharpNetwork
             }
         }
 
+        public CommonNetworkEventHandler()
+        {
+            m_Events = null;
+        }
+
         public CommonNetworkEventHandler(NetworkEventPackage events)
         {
             m_Events = events;
