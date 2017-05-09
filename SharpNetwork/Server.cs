@@ -196,10 +196,10 @@ namespace SharpNetwork
                 try
                 {
                     // Get the socket that handles the client request.
-                    Socket listener = (Socket)ar.AsyncState;
+                    Socket listener = ar == null ? null : ar.AsyncState as Socket;
                     if (listener != null) socket = listener.EndAccept(ar);
                 }
-                catch { }
+                catch { socket = null; }
             }
 
             // after unlock the watcher, re-activate it ... 
@@ -237,32 +237,80 @@ namespace SharpNetwork
                 session.SetSessionGroup(m_SessionGroup);
             }
 
-            if (session != null)
+            try
             {
-                Stream stream = session.GetStream();
-                if (stream != null)
+                if (session != null)
                 {
-                    if (stream is SslStream && m_Cert != null)
+                    Stream stream = session.GetStream();
+                    if (stream != null)
                     {
-                        (stream as SslStream).BeginAuthenticateAsServer(m_Cert, 
-                                new AsyncCallback(AuthenticateCallback), session);
-                    }
-                    else if (stream is NetworkStream)
-                    {
-                        if (session != null) session.Open();
+                        if (stream is SslStream && m_Cert != null)
+                        {
+                            (stream as SslStream).BeginAuthenticateAsServer(m_Cert, 
+                                    new AsyncCallback(AuthenticateCallback), session);
+                            return;
+                        }
+                        else if (stream is NetworkStream)
+                        {
+                            if (session != null)
+                            {
+                                session.Open();
+                                return;
+                            }
+                        }
                     }
                 }
+
+                if (session != null) session.Close();
             }
+            catch (Exception ex)
+            {
+                if (m_IoHandler != null)
+                {
+                    try
+                    {
+                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex.Message);
+                    }
+                    catch { }
+                }
+            }
+
         }
 
         public void AuthenticateCallback(IAsyncResult ar)
         {
-            Session session = (Session)ar.AsyncState;
-            Stream stream = session == null ? null : session.GetStream();
-            if (stream != null && stream is SslStream)
+            Session session = null;
+            try
             {
-                (stream as SslStream).EndAuthenticateAsServer(ar);
-                if (session != null) session.Open();
+                session = ar == null ? null : ar.AsyncState as Session;
+            }
+            catch { session = null; }
+
+            try
+            {
+                Stream stream = session == null ? null : session.GetStream();
+                if (ar != null && stream != null && stream is SslStream)
+                {
+                    (stream as SslStream).EndAuthenticateAsServer(ar);
+                    if (session != null)
+                    {
+                        session.Open();
+                        return;
+                    }
+                }
+
+                if (session != null) session.Close();
+            }
+            catch (Exception ex)
+            {
+                if (m_IoHandler != null)
+                {
+                    try
+                    {
+                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex.Message);
+                    }
+                    catch { }
+                }
             }
         }
 
