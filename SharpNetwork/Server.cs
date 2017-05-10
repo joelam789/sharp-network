@@ -246,9 +246,9 @@ namespace SharpNetwork
                     {
                         if (stream is SslStream && m_Cert != null)
                         {
-                            (stream as SslStream).BeginAuthenticateAsServer(m_Cert, 
-                                    new AsyncCallback(AuthenticateCallback), session);
-                            return;
+                            var result = (stream as SslStream).BeginAuthenticateAsServer(m_Cert, new AsyncCallback(AuthenticateCallback), session);
+                            if (result == null) throw new Exception("Failed to run BeginAuthenticateAsServer()");
+                            else return;
                         }
                         else if (stream is NetworkStream)
                         {
@@ -260,8 +260,6 @@ namespace SharpNetwork
                         }
                     }
                 }
-
-                if (session != null) session.Close();
             }
             catch (Exception ex)
             {
@@ -275,6 +273,8 @@ namespace SharpNetwork
                 }
             }
 
+            if (session != null) session.Close();
+
         }
 
         public void AuthenticateCallback(IAsyncResult ar)
@@ -285,6 +285,8 @@ namespace SharpNetwork
                 session = ar == null ? null : ar.AsyncState as Session;
             }
             catch { session = null; }
+
+            if (session == null) return;
 
             try
             {
@@ -298,8 +300,6 @@ namespace SharpNetwork
                         return;
                     }
                 }
-
-                if (session != null) session.Close();
             }
             catch (Exception ex)
             {
@@ -312,6 +312,8 @@ namespace SharpNetwork
                     catch { }
                 }
             }
+
+            if (session != null) session.Close();
         }
 
         protected bool Listen(IPEndPoint localEndPoint, int localPort)

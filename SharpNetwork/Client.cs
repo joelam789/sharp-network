@@ -214,7 +214,7 @@ namespace SharpNetwork
                 {
                     try
                     {
-                        m_IoHandler.OnError(m_Session, Session.ERROR_CONNECT, e.Message);
+                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, e.Message);
                     }
                     catch { }
                 }
@@ -254,7 +254,7 @@ namespace SharpNetwork
                     {
                         try
                         {
-                            m_IoHandler.OnError(m_Session, Session.ERROR_CONNECT, "Connection timeout");
+                            m_IoHandler.OnError(null, Session.ERROR_CONNECT, "Connection timeout");
                         }
                         catch { }
                     }
@@ -270,7 +270,7 @@ namespace SharpNetwork
                 {
                     try
                     {
-                        m_IoHandler.OnError(m_Session, Session.ERROR_CONNECT, e.Message);
+                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, e.Message);
                     }
                     catch { }
                 }
@@ -282,71 +282,30 @@ namespace SharpNetwork
 
         private static void ConnectCallback(IAsyncResult ar)
         {
-            Client client = (Client)ar.AsyncState;
-            if (client != null)
+            Client client = null;
+            try
             {
-                // Complete the connection.
-                try
-                {
-                    lock (client.m_SessionGroup)
-                    {
-                        if (client.m_Socket != null)
-                        {
-                            client.m_Socket.EndConnect(ar);
-
-                            client.m_Session = client.m_ValidationCallback == null
-                                    ? new Session(client.m_ClientId, client.m_Socket, client.m_IoHandler, client.m_IoFilter)
-                                    : new Session(client.m_ClientId, client.m_Socket, client.m_IoHandler, client.m_IoFilter, client.m_ValidationCallback);
-                            client.m_Session.SetSessionGroup(client.m_SessionGroup);
-                            client.m_SessionId = Convert.ToString(client.m_ClientId);
-
-                            if (client.m_Session != null)
-                            {
-                                Stream stream = client.m_Session.GetStream();
-                                if (stream != null)
-                                {
-                                    if (stream is SslStream)
-                                    {
-                                        var result = (stream as SslStream).BeginAuthenticateAsClient(client.m_TargetServer, // it should be a domain name ...
-                                                        new AsyncCallback(AuthenticateCallback), client);
-                                        if (result == null) throw new Exception("Failed to run BeginAuthenticateAsClient()");
-                                    }
-                                    else if (stream is NetworkStream)
-                                    {
-                                        client.m_State = 1;
-                                        client.m_Session.Open();
-                                        client.m_SessionGroup.StartCheckingIdle();
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception e)
-                {
-                    if (client.m_IoHandler != null)
-                    {
-                        try
-                        {
-                            client.m_IoHandler.OnError(client.m_Session, Session.ERROR_CONNECT, e.Message);
-                        }
-                        catch { }
-                    }
-                    client.Disconnect();
-                }
+                client = ar == null ? null : ar.AsyncState as Client;
             }
-        }
+            catch { client = null; }
 
-        private static void AuthenticateCallback(IAsyncResult ar)
-        {
-            Client client = (Client)ar.AsyncState;
-            if (client != null)
+            if (client == null) return;
+
+            // Complete the connection.
+            try
             {
-                // Complete the connection.
-                try
+                lock (client.m_SessionGroup)
                 {
-                    lock (client.m_SessionGroup)
+                    if (client.m_Socket != null)
                     {
+                        client.m_Socket.EndConnect(ar);
+
+                        client.m_Session = client.m_ValidationCallback == null
+                                ? new Session(client.m_ClientId, client.m_Socket, client.m_IoHandler, client.m_IoFilter)
+                                : new Session(client.m_ClientId, client.m_Socket, client.m_IoHandler, client.m_IoFilter, client.m_ValidationCallback);
+                        client.m_Session.SetSessionGroup(client.m_SessionGroup);
+                        client.m_SessionId = Convert.ToString(client.m_ClientId);
+
                         if (client.m_Session != null)
                         {
                             Stream stream = client.m_Session.GetStream();
@@ -354,27 +313,85 @@ namespace SharpNetwork
                             {
                                 if (stream is SslStream)
                                 {
-                                    (stream as SslStream).EndAuthenticateAsClient(ar);
+                                    var result = (stream as SslStream).BeginAuthenticateAsClient(client.m_TargetServer, // it should be a domain name ...
+                                                    new AsyncCallback(AuthenticateCallback), client);
+                                    if (result == null) throw new Exception("Failed to run BeginAuthenticateAsClient()");
+                                    else return;
+                                }
+                                else if (stream is NetworkStream)
+                                {
                                     client.m_State = 1;
                                     client.m_Session.Open();
                                     client.m_SessionGroup.StartCheckingIdle();
+                                    return;
                                 }
                             }
                         }
                     }
                 }
-                catch (Exception e)
+
+                client.Disconnect();
+            }
+            catch (Exception e)
+            {
+                if (client.m_IoHandler != null)
                 {
-                    if (client.m_IoHandler != null)
+                    try
                     {
-                        try
-                        {
-                            client.m_IoHandler.OnError(client.m_Session, Session.ERROR_CONNECT, e.Message);
-                        }
-                        catch { }
+                        client.m_IoHandler.OnError(null, Session.ERROR_CONNECT, e.Message);
                     }
-                    client.Disconnect();
+                    catch { }
                 }
+                client.Disconnect();
+            }
+        }
+
+        private static void AuthenticateCallback(IAsyncResult ar)
+        {
+            Client client = null;
+            try
+            {
+                client = ar == null ? null : ar.AsyncState as Client;
+            }
+            catch { client = null; }
+
+            if (client == null) return;
+
+            // Complete the connection.
+            try
+            {
+                lock (client.m_SessionGroup)
+                {
+                    if (client.m_Session != null)
+                    {
+                        Stream stream = client.m_Session.GetStream();
+                        if (stream != null)
+                        {
+                            if (stream is SslStream)
+                            {
+                                (stream as SslStream).EndAuthenticateAsClient(ar);
+                                client.m_State = 1;
+                                client.m_Session.Open();
+                                client.m_SessionGroup.StartCheckingIdle();
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                client.Disconnect();
+            }
+            catch (Exception e)
+            {
+                if (client.m_IoHandler != null)
+                {
+                    try
+                    {
+                        client.m_IoHandler.OnError(null, Session.ERROR_CONNECT, e.Message);
+                    }
+                    catch { }
+                }
+                client.Disconnect();
             }
         }
 

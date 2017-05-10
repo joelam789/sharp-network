@@ -528,21 +528,25 @@ namespace SharpNetwork
                 m_Stream = null;
             }
 
-            // clean up the queue
-            if (m_OutgoingMessageQueue.Count > 0)
+            try
             {
-                m_OutgoingMessageQueue.Clear();
-            }
+                // clean up the queue
+                if (m_OutgoingMessageQueue.Count > 0)
+                {
+                    m_OutgoingMessageQueue.Clear();
+                }
 
-            // clean up the queue
-            if (m_IncomingMessageQueue.Count > 0)
-            {
-                m_IncomingMessageQueue.Clear();
+                // clean up the queue
+                if (m_IncomingMessageQueue.Count > 0)
+                {
+                    m_IncomingMessageQueue.Clear();
+                }
+
+                m_Attributes.Clear();
             }
+            catch { }
 
             m_IsGoingToClose = false;
-
-            m_Attributes.Clear();
 
             if (m_SessionGroup != null)
             {
