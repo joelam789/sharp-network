@@ -333,14 +333,33 @@ namespace SharpNetwork.SimpleWebSocket
                     Byte[] bytes = new Byte[netMsg.ContentSize];
                     stream.Read(bytes, 0, netMsg.ContentSize);
 
-                    netMsg.RawContent = bytes;
+                    if (netMsg.MaskFlag > 0 && netMsg.MaskBytes != null)
+                    {
+                        int masklen = netMsg.MaskBytes.Length;
+                        for (int i = 0; i < bytes.Length; i++)
+                        {
+                            bytes[i] = (byte)(bytes[i] ^ netMsg.MaskBytes[i % masklen]);
+                        }
+                    }
 
+                    if (netMsg.MessageType == WebMessage.MSG_TYPE_STRING)
+                    {
+                        netMsg.MessageContent = Encoding.UTF8.GetString(bytes, 0, bytes.Length);
+                    }
 
-                    netMsg.ReceivingState = WebMessage.STATE_READY;
-                    if (stack.Count > 0) stack.Pop();
+                    if (netMsg.MessageType == WebMessage.MSG_TYPE_BINARY
+                        || netMsg.MessageType == WebMessage.MSG_TYPE_PING
+                        || netMsg.MessageType == WebMessage.MSG_TYPE_PONG)
+                    {
+                        netMsg.RawContent = bytes;
+                        netMsg.ContentSize = bytes.Length;
+                    }
 
                     output.Add(netMsg);
                     total++;
+
+                    netMsg.ReceivingState = WebMessage.STATE_READY;
+                    if (stack.Count > 0) stack.Pop();
 
                     netMsg = new WebMessage();
                     netMsg.VirtualHeaderSize = 2;
