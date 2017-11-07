@@ -276,17 +276,20 @@ namespace SharpNetwork
                 catch { }
             }
 
-            // make sure the queue is clean
-            if (m_OutgoingMessageQueue.Count > 0)
+            try
             {
-                m_OutgoingMessageQueue.Clear();
+                // make sure the queue is clean
+                if (m_OutgoingMessageQueue.Count > 0)
+                {
+                    lock (m_OutgoingMessageQueue) m_OutgoingMessageQueue.Clear();
+                }
+                // make sure the queue is clean
+                if (m_IncomingMessageQueue.Count > 0)
+                {
+                    m_IncomingMessageQueue.Clear(); // incoming data should be processed in single thread
+                }
             }
-
-            // make sure the queue is clean
-            if (m_IncomingMessageQueue.Count > 0)
-            {
-                m_IncomingMessageQueue.Clear();
-            }
+            catch { }
 
             if (m_IoHandler != null) { try { m_IoHandler.OnConnect(this); } catch { } }
 
@@ -340,7 +343,7 @@ namespace SharpNetwork
             }
             catch (Exception e)
             {
-                if (session.m_IoHandler != null)
+                if (session != null && session.m_IoHandler != null)
                 {
                     try
                     {
@@ -353,136 +356,130 @@ namespace SharpNetwork
 
         private void Receive()
         {
-            try
+            List<Object> outputList = new List<Object>();
+
+            int lastsize = Convert.ToInt32(m_IncomingStream.Length);
+            int totalsize = m_ReadSize + lastsize;
+
+            if (totalsize > 0)
             {
-                List<Object> outputList = new List<Object>();
+                m_ReadStream.Position = 0;
+                m_ReadStream.SetLength(totalsize);
 
-                int lastsize = Convert.ToInt32(m_IncomingStream.Length);
-                int totalsize = m_ReadSize + lastsize;
-
-                if (totalsize > 0)
+                if (m_IncomingStream.Length > 0)
                 {
-                    m_ReadStream.Position = 0;
-                    m_ReadStream.SetLength(totalsize);
-
-                    if (m_IncomingStream.Length > 0)
-                    {
-                        m_IncomingStream.Position = 0;
-                        m_IncomingStream.WriteTo(m_ReadStream);
-                    }
-
-                    m_ReadStream.Position = lastsize;
-                    m_ReadStream.Write(m_ReadBuffer, 0, m_ReadSize);
-
-                    m_ReadStream.Position = 0;
-
-                    bool noRemains = true;
-
-                    if (m_IoFilter != null)
-                    {
-                        try
-                        {
-                            noRemains = m_IoFilter.Decode(this, m_ReadStream, outputList);
-                        }
-                        catch { }
-                    }
-
-                    if (!noRemains && m_ReadStream.Position != totalsize)
-                    {
-                        int remain = totalsize - Convert.ToInt32(m_ReadStream.Position);
-                        if (remain > 0)
-                        {
-                            Byte[] tempbytes = new Byte[remain];
-                            m_ReadStream.Read(tempbytes, 0, remain);
-
-                            m_IncomingStream.Position = 0;
-                            m_IncomingStream.SetLength(remain);
-
-                            m_IncomingStream.Write(tempbytes, 0, remain);
-                            m_IncomingStream.Position = 0;
-
-                        }
-                    }
-                    else
-                    {
-                        m_IncomingStream.Position = 0;
-                        m_IncomingStream.SetLength(0);
-                    }
-
-                    if (outputList.Count > 0 && m_IoHandler != null)
-                    {
-                        bool full = false;
-
-                        int queueSize = m_IncomingMessageQueue.Count;
-                        foreach (Object obj in outputList)
-                        {
-                            if (m_MaxReadQueueSize > 0)
-                            {
-                                if (queueSize >= m_MaxReadQueueSize)
-                                {
-                                    full = true;
-
-                                    if (m_FitReadQueueAction == ACT_KEEP_NEW)
-                                    {
-                                        m_IncomingMessageQueue.Dequeue(); // give up the old one ...
-                                    }
-                                    else
-                                    {
-                                        break;
-                                    }
-                                }
-                            }
-                            m_IncomingMessageQueue.Enqueue(obj);
-                            queueSize++;
-                        }
-
-                        if (full)
-                        {
-                            if (m_FitReadQueueAction == ACT_KEEP_DEFAULT && m_IoHandler != null)
-                            {
-                                try
-                                {
-                                    m_IoHandler.OnError(this, Session.ERROR_RECEIVE, "Incoming queue is full");
-                                }
-                                catch { }
-                            }
-                        }
-
-                        ProcessIncomingData(); // process
-                    }
-
-                    // next round
-                    if (m_State > 0)
-                    {
-                        if (m_Stream != null)
-                        {
-                            m_Stream.BeginRead(m_ReadBuffer, 0, m_ReadBuffer.Length, new AsyncCallback(ReceiveCallback), this);
-                        }
-                    }
-
+                    m_IncomingStream.Position = 0;
+                    m_IncomingStream.WriteTo(m_ReadStream);
                 }
-                else
-                {
-                    // next round
-                    if (m_State > 0)
-                    {
-                        if (m_Stream != null)
-                        {
-                            m_Stream.BeginRead(m_ReadBuffer, 0, m_ReadBuffer.Length, new AsyncCallback(ReceiveCallback), this);
-                        }
-                    }
-                }
-               
-            }
-            catch (Exception ex)
-            {
-                if (m_IoHandler != null)
+
+                m_ReadStream.Position = lastsize;
+                m_ReadStream.Write(m_ReadBuffer, 0, m_ReadSize);
+
+                m_ReadStream.Position = 0;
+
+                bool noRemains = true;
+
+                if (m_IoFilter != null)
                 {
                     try
                     {
-                        m_IoHandler.OnError(this, ERROR_RECEIVE, ex.Message);
+                        noRemains = m_IoFilter.Decode(this, m_ReadStream, outputList);
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        try
+                        {
+                            if (m_IoHandler != null)
+                                m_IoHandler.OnError(this, Session.ERROR_RECEIVE, "Decode Error: " + ex.Message);
+                        }
+                        catch { }
+                    }
+                }
+
+                if (!noRemains && m_ReadStream.Position != totalsize)
+                {
+                    int remain = totalsize - Convert.ToInt32(m_ReadStream.Position);
+                    if (remain > 0)
+                    {
+                        Byte[] tempbytes = new Byte[remain];
+                        m_ReadStream.Read(tempbytes, 0, remain);
+
+                        m_IncomingStream.Position = 0;
+                        m_IncomingStream.SetLength(remain);
+
+                        m_IncomingStream.Write(tempbytes, 0, remain);
+                        m_IncomingStream.Position = 0;
+
+                    }
+                }
+                else
+                {
+                    m_IncomingStream.Position = 0;
+                    m_IncomingStream.SetLength(0);
+                }
+
+                if (outputList.Count > 0 && m_IoHandler != null)
+                {
+                    bool full = false;
+
+                    int queueSize = m_IncomingMessageQueue.Count;
+                    foreach (Object obj in outputList)
+                    {
+                        if (m_MaxReadQueueSize > 0)
+                        {
+                            if (queueSize >= m_MaxReadQueueSize)
+                            {
+                                full = true;
+
+                                if (m_FitReadQueueAction == ACT_KEEP_NEW)
+                                {
+                                    // give up the old one ...
+                                    if (m_IncomingMessageQueue.Count > 0) m_IncomingMessageQueue.Dequeue();
+                                }
+                                else
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                        m_IncomingMessageQueue.Enqueue(obj);
+                        queueSize++;
+                    }
+
+                    if (full)
+                    {
+                        if (m_FitReadQueueAction == ACT_KEEP_DEFAULT && m_IoHandler != null)
+                        {
+                            try
+                            {
+                                m_IoHandler.OnError(this, Session.ERROR_RECEIVE, "Incoming queue is full");
+                            }
+                            catch { }
+                        }
+                    }
+
+                    ProcessIncomingData(); // process
+                }
+
+                // next round
+                if (m_State > 0)
+                {
+                    if (m_Stream != null)
+                    {
+                        m_Stream.BeginRead(m_ReadBuffer, 0, m_ReadBuffer.Length, new AsyncCallback(ReceiveCallback), this);
+                    }
+                }
+
+            }
+            else
+            {
+                // next round
+                if (m_State > 0)
+                {
+                    if (m_Stream != null)
+                    {
+                        m_Stream.BeginRead(m_ReadBuffer, 0, m_ReadBuffer.Length, new AsyncCallback(ReceiveCallback), this);
+                    }
                 }
             }
         }
@@ -509,16 +506,8 @@ namespace SharpNetwork
             if (m_Stream != null)
             {
                 m_State = 0;
-                try
-                {
-                    //try { m_Socket.Shutdown(SocketShutdown.Both); }
-                    //catch { }
-                    try { m_Stream.Close(); }
-                    catch { }
-                    try { m_Stream.Dispose(); }
-                    catch { }
-                }
-                catch { }
+                try { m_Stream.Close(); } catch { }
+                try { m_Stream.Dispose(); } catch { }
                 m_State = -1;
                 m_Stream = null;
             }
@@ -533,13 +522,13 @@ namespace SharpNetwork
                 // clean up the queue
                 if (m_OutgoingMessageQueue.Count > 0)
                 {
-                    m_OutgoingMessageQueue.Clear();
+                    lock (m_OutgoingMessageQueue) m_OutgoingMessageQueue.Clear();
                 }
 
                 // clean up the queue
                 if (m_IncomingMessageQueue.Count > 0)
                 {
-                    m_IncomingMessageQueue.Clear();
+                    m_IncomingMessageQueue.Clear(); // incoming data should be processed in single thread
                 }
 
                 m_Attributes.Clear();
@@ -576,47 +565,39 @@ namespace SharpNetwork
             stream.SetLength(0);
             stream.Position = 0;
 
-            bool encodeOK = true;
+            bool encodeOK = false;
 
-            if (m_IoFilter != null)
+            try
             {
-                try
+                m_IoFilter.Encode(this, message, stream);
+                encodeOK = true;
+
+                IoDataStream msg = null;
+                lock (m_OutgoingMessageQueue)
                 {
-                    m_IoFilter.Encode(this, message, stream);
-                }
-                catch (Exception ex)
-                {
-                    encodeOK = false;
-                    if (m_IoHandler != null)
+                    bool sending = m_OutgoingMessageQueue.Count > 0;
+                    if (m_MaxWriteQueueSize > 0
+                        && m_OutgoingMessageQueue.Count >= m_MaxWriteQueueSize
+                        && m_FitWriteQueueAction == ACT_KEEP_NEW)
                     {
-                        try
-                        {
-                            m_IoHandler.OnError(this, Session.ERROR_SEND, ex.Message);
-                        }
-                        catch { }
+                        m_OutgoingMessageQueue.Dequeue(); // just remove one old packet, even it's being sent
                     }
+                    m_OutgoingMessageQueue.Enqueue(new IoDataStream(message, stream));
+                    if (!sending) msg = m_OutgoingMessageQueue.Peek();
                 }
+                if (msg != null) DoSend(msg);
             }
-
-            if (!encodeOK) return;
-
-            IoDataStream msg = null;
-            lock (m_OutgoingMessageQueue)
+            catch (Exception ex)
             {
-                bool sending = m_OutgoingMessageQueue.Count > 0;
-
-                if (m_MaxWriteQueueSize > 0
-                    && m_OutgoingMessageQueue.Count >= m_MaxWriteQueueSize
-                    && m_FitWriteQueueAction == ACT_KEEP_NEW)
+                if (m_IoHandler != null)
                 {
-                    m_OutgoingMessageQueue.Dequeue(); // just remove one old packet, even it's being sent
+                    try
+                    {
+                        m_IoHandler.OnError(this, Session.ERROR_SEND, (encodeOK ? "" : "Encode Error: ") + ex.Message);
+                    }
+                    catch { }
                 }
-                m_OutgoingMessageQueue.Enqueue(new IoDataStream(message, stream));
-                
-                if (!sending) msg = m_OutgoingMessageQueue.Peek();
             }
-
-            if (msg != null) DoSend(msg);
 
         }
 
@@ -631,26 +612,12 @@ namespace SharpNetwork
             {
                 stream.Position = 0;
 
-                try
+                if (m_Stream != null)
                 {
-                    if (m_Stream != null)
-                    {
-                        SessionContext info = new SessionContext(this, msg);
-                        m_Stream.BeginWrite(stream.ToArray(),
-                            0, Convert.ToInt32(stream.Length),
-                                new AsyncCallback(SendCallback), info);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    if (m_IoHandler != null)
-                    {
-                        try
-                        {
-                            m_IoHandler.OnError(this, ERROR_SEND, ex.Message);
-                        }
-                        catch { }
-                    }
+                    SessionContext info = new SessionContext(this, msg);
+                    m_Stream.BeginWrite(stream.ToArray(),
+                        0, Convert.ToInt32(stream.Length),
+                            new AsyncCallback(SendCallback), info);
                 }
             }
 
@@ -658,27 +625,27 @@ namespace SharpNetwork
 
         private static void SendCallback(IAsyncResult arg)
         {
-            SessionContext info = (SessionContext)arg.AsyncState;
-            Session session = info.Session;
-            Object data = info.Data;
+            Session session = null;
+            Object data = null;
             try
             {
+                SessionContext info = (SessionContext)arg.AsyncState;
+                session = info.Session;
+                data = info.Data;
+
                 session.m_LastWriteTime = DateTime.Now;
 
                 // Complete sending the data to the remote device.
-                int bytesSent = 1;
-                //if (session.m_Socket != null) bytesSent = session.m_Socket.EndSend(arg);
                 if (session.m_Stream != null) session.m_Stream.EndWrite(arg);
+                if (session.m_IoHandler != null && session.m_State > 0) session.m_IoHandler.OnSend(session, data);
 
-                if (bytesSent > 0)
-                {
-                    if (session.m_IoHandler != null && session.m_State > 0) session.m_IoHandler.OnSend(session, data);
-                }
+                // continue to process the rest
+                session.ProcessOutgoingData();
 
             }
             catch (Exception e)
             {
-                if (session.m_IoHandler != null)
+                if (session != null && session.m_IoHandler != null)
                 {
                     try
                     {
@@ -687,10 +654,6 @@ namespace SharpNetwork
                     catch { }
                 }
             }
-
-            // continue to process the rest
-            session.ProcessOutgoingData();
-
         }
 
         private void ProcessOutgoingData()
@@ -703,7 +666,7 @@ namespace SharpNetwork
                 lock (m_OutgoingMessageQueue)
                 {
                     // before send out a new message, we must remove the old one first
-                    m_OutgoingMessageQueue.Dequeue();
+                    if (m_OutgoingMessageQueue.Count > 0) m_OutgoingMessageQueue.Dequeue();
 
                     // try to find some messages which are still waiting
                     if (m_OutgoingMessageQueue.Count > 0) msg = m_OutgoingMessageQueue.Peek();
