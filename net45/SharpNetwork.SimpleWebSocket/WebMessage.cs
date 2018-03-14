@@ -61,9 +61,23 @@ namespace SharpNetwork.SimpleWebSocket
         private IJsonCodec m_JsonCodec = null;
         private static IJsonCodec m_CommonJsonCodec = null;
         private static IJsonCodec m_DefaultJsonCodec = new SimpleJsonCodec();
-        public static void SetJsonCodec(IJsonCodec jsonCodec)
+        public static IJsonCodec DefaultJsonCodec
         {
-            m_CommonJsonCodec = jsonCodec;
+            get
+            {
+                return m_DefaultJsonCodec;
+            }
+        }
+        public static IJsonCodec JsonCodec
+        {
+            get
+            {
+                return m_CommonJsonCodec;
+            }
+            set
+            {
+                m_CommonJsonCodec = value;
+            }
         }
 
         public WebMessage()
