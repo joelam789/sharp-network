@@ -84,7 +84,7 @@ namespace SharpNetwork.SimpleProtocol
         {
             get
             {
-                return m_CommonJsonCodec;
+                return m_CommonJsonCodec == null ? m_DefaultJsonCodec : m_CommonJsonCodec;
             }
             set
             {
