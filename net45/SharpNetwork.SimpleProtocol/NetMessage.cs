@@ -71,7 +71,7 @@ namespace SharpNetwork.SimpleProtocol
             = new ConcurrentExclusiveSchedulerPair();
 
         private IJsonCodec m_JsonCodec = null;
-        private static IJsonCodec m_CommonJsonCodec = null;
+        private static IJsonCodec m_CurrentJsonCodec = null;
         private static IJsonCodec m_DefaultJsonCodec = new SimpleJsonCodec();
         public static IJsonCodec DefaultJsonCodec
         {
@@ -84,11 +84,11 @@ namespace SharpNetwork.SimpleProtocol
         {
             get
             {
-                return m_CommonJsonCodec == null ? m_DefaultJsonCodec : m_CommonJsonCodec;
+                return m_CurrentJsonCodec == null ? m_DefaultJsonCodec : m_CurrentJsonCodec;
             }
             set
             {
-                m_CommonJsonCodec = value;
+                m_CurrentJsonCodec = value;
             }
         }
 
@@ -109,7 +109,7 @@ namespace SharpNetwork.SimpleProtocol
             MessageContent = "";
             RawContent = null;
 
-            m_JsonCodec = m_CommonJsonCodec;
+            m_JsonCodec = m_CurrentJsonCodec;
             if (m_JsonCodec == null) m_JsonCodec = m_DefaultJsonCodec;
         }
 
@@ -193,7 +193,7 @@ namespace SharpNetwork.SimpleProtocol
             {
                 if (str.Length > 0)
                 {
-                    var codec = m_CommonJsonCodec == null ? m_DefaultJsonCodec : m_CommonJsonCodec;
+                    var codec = m_CurrentJsonCodec == null ? m_DefaultJsonCodec : m_CurrentJsonCodec;
                     return codec.ToJsonObject<U>(str);
                 }
                 else
@@ -212,7 +212,7 @@ namespace SharpNetwork.SimpleProtocol
             string str = "";
             try
             {
-                var codec = m_CommonJsonCodec == null ? m_DefaultJsonCodec : m_CommonJsonCodec;
+                var codec = m_CurrentJsonCodec == null ? m_DefaultJsonCodec : m_CurrentJsonCodec;
                 str = codec.ToJsonString(obj);
             }
             catch { }
