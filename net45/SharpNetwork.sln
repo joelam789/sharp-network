@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpNetwork.SimpleProtocol
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpNetwork.SimpleWebSocket", "SharpNetwork.SimpleWebSocket\SharpNetwork.SimpleWebSocket.csproj", "{AD8C196F-453C-4506-9D91-95614ECC8F4C}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpNetwork.SimpleHttp", "SharpNetwork.SimpleHttp\SharpNetwork.SimpleHttp.csproj", "{AF38E168-B67B-4276-9408-683C5A853705}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{AD8C196F-453C-4506-9D91-95614ECC8F4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{AD8C196F-453C-4506-9D91-95614ECC8F4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{AD8C196F-453C-4506-9D91-95614ECC8F4C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AF38E168-B67B-4276-9408-683C5A853705}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AF38E168-B67B-4276-9408-683C5A853705}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AF38E168-B67B-4276-9408-683C5A853705}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AF38E168-B67B-4276-9408-683C5A853705}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
