@@ -12,19 +12,19 @@ namespace SharpNetwork.SimpleHttp
     {
         HttpRouter m_MessageHandlerManager = null;
 
-        public bool AllowOrderlyProcess { get; set; }
+        public bool IsOrderlyProcess { get; set; }
 
         public NetworkEventHandler(HttpRouter messageHandlerManager) : base()
         {
             m_MessageHandlerManager = messageHandlerManager;
-            AllowOrderlyProcess = false;
+            IsOrderlyProcess = false;
         }
 
         public NetworkEventHandler(HttpRouter messageHandlerManager, NetworkEventPackage events)
             : base(events)
         {
             m_MessageHandlerManager = messageHandlerManager;
-            AllowOrderlyProcess = false;
+            IsOrderlyProcess = false;
         }
 
         public HttpRouter GetHandlerManager()
@@ -68,34 +68,63 @@ namespace SharpNetwork.SimpleHttp
             HttpMessage.GetSessionData(session, true);
 
             // one factory for one session
-            if (AllowOrderlyProcess) HttpMessage.GetSingleTaskFactory(session, true);
+            if (IsOrderlyProcess) HttpMessage.GetSingleTaskFactory(session, true);
 
             base.OnConnect(session);
         }
 
         public override int OnReceive(Session session, Object data)
         {
-            SessionContext ctx = new SessionContext(session, data);
-            HttpMessage msg = (HttpMessage)ctx.Data;
+            if (data is HttpMessage) ProcessMessage(new SessionContext(session, data));
+            return base.OnReceive(session, data);
+        }
 
-            // run further decode process here (or may run it within the thread, see ProcessMessage())
-            //MessageCodec.DecodeMessage(session, msg);
+        protected virtual void ProcessMessage(SessionContext ctx)
+        {
+            if (ctx == null) return;
 
             TaskFactory factory = Task.Factory;
 
-            if (AllowOrderlyProcess && ctx.Session != null)
+            if (IsOrderlyProcess && ctx.Session != null)
                 factory = HttpMessage.GetSingleTaskFactory(ctx.Session);
 
             if (factory != null)
             {
-                factory.StartNew((Action<object>)((param) =>
-                {
-                    ProcessMessage(param);
-                }), ctx);
+                factory.StartNew((param) => DispatchMessage(param), ctx);
             }
-            else ProcessMessage(ctx);
+            else DispatchMessage(ctx);
 
-            return base.OnReceive(session, data);
+        }
+
+        protected virtual void DispatchMessage(object data)
+        {
+            Session session = null;
+            try
+            {
+                if (m_MessageHandlerManager == null || data == null) return;
+
+                SessionContext ctx = (SessionContext)data;
+                session = ctx.Session;
+                HttpMessage msg = (HttpMessage)ctx.Data;
+
+                IHandler handler = m_MessageHandlerManager.GetHandler(msg.RequestUrl);
+                if (handler == null) return;
+
+                // you may run some complex decode function here ...
+                //MessageCodec.DecodeMessage(session, msg);
+
+                handler.Handle(ctx);
+
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    OnError(session, Session.ERROR_RECEIVE, ex.Message);
+                }
+                catch { }
+            }
+
         }
 
     }
