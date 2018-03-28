@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization.Json;
+using System.Text;
 
 namespace SharpNetwork.Core
 {
@@ -19,13 +21,13 @@ namespace SharpNetwork.Core
         int OnReceive(Session session, Object data);
 
         void OnIdle(Session session, Int32 optype);
-        void OnError(Session session, Int32 errortype, String errormsg);
+        void OnError(Session session, Int32 errortype, Exception error);
     }
 
     public delegate void NetworkEvent(Session session);
     public delegate int NetworkDataEvent(Session session, Object data);
     public delegate void NetworkOpEvent(Session session, Int32 optype);
-    public delegate void NetworkErrorEvent(Session session, Int32 errortype, String errormsg);
+    public delegate void NetworkErrorEvent(Session session, Int32 errortype, Exception error);
 
     public class NetworkEventPackage
     {
@@ -48,12 +50,12 @@ namespace SharpNetwork.Core
 
         public void FireConnectEvent(Session session)
         {
-            if (OnConnect != null) OnConnect(session);
+            OnConnect?.Invoke(session);
         }
 
         public void FireDisconnectEvent(Session session)
         {
-            if (OnDisconnect != null) OnDisconnect(session);
+            OnDisconnect?.Invoke(session);
         }
 
         public int FireSendEvent(Session session, Object data)
@@ -73,9 +75,9 @@ namespace SharpNetwork.Core
             if (OnIdle != null) OnIdle(session, optype);
         }
 
-        public void FireErrorEvent(Session session, Int32 errortype, String errormsg)
+        public void FireErrorEvent(Session session, Int32 errortype, Exception error)
         {
-            if (OnError != null) OnError(session, errortype, errormsg);
+            if (OnError != null) OnError(session, errortype, error);
         }
     }
 
@@ -128,15 +130,51 @@ namespace SharpNetwork.Core
             if (m_Events != null) m_Events.FireIdleEvent(session, optype);
         }
 
-        public virtual void OnError(Session session, Int32 errortype, String errormsg)
+        public virtual void OnError(Session session, Int32 errortype, Exception error)
         {
             try
             {
-                if (m_Events != null) m_Events.FireErrorEvent(session, errortype, errormsg);
+                if (m_Events != null) m_Events.FireErrorEvent(session, errortype, error);
             }
             finally
             {
-                if (session != null) session.Close();
+                if (session != null && Session.IsNetworkError(errortype))
+                {
+                    session.Close();
+                }
+            }
+        }
+
+    }
+
+    public interface ICommonJsonCodec
+    {
+        string ToJsonString(object obj);
+        T ToJsonObject<T>(string str) where T : class;
+    }
+
+    public class SimpleJsonCodec : ICommonJsonCodec
+    {
+        public string ToJsonString(object obj)
+        {
+            DataContractJsonSerializer serializer = new DataContractJsonSerializer(obj.GetType());
+            using (MemoryStream ms = new MemoryStream())
+            {
+                serializer.WriteObject(ms, obj);
+                return Encoding.UTF8.GetString(ms.ToArray());
+            }
+        }
+
+        public T ToJsonObject<T>(string str) where T : class
+        {
+            if (str == null || str.Length <= 0) return null;
+            else
+            {
+                DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(T));
+                using (MemoryStream ms = new MemoryStream(Encoding.UTF8.GetBytes(str)))
+                {
+                    return serializer.ReadObject(ms) as T;
+                }
             }
         }
 

@@ -78,7 +78,7 @@ namespace SharpNetwork.SimpleWebSocket
             {
                 try
                 {
-                    OnError(session, Session.ERROR_RECEIVE, ex.Message);
+                    OnError(session, Session.ERROR_RECEIVE, ex);
                 }
                 catch { }
             }

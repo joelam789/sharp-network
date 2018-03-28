@@ -55,7 +55,7 @@ namespace SharpNetwork.SimpleHttp
             {
                 try
                 {
-                    OnError(session, Session.ERROR_RECEIVE, ex.Message);
+                    OnError(session, Session.ERROR_RECEIVE, ex);
                 }
                 catch { }
             }
@@ -120,7 +120,7 @@ namespace SharpNetwork.SimpleHttp
             {
                 try
                 {
-                    OnError(session, Session.ERROR_RECEIVE, ex.Message);
+                    OnError(session, Session.ERROR_RECEIVE, ex);
                 }
                 catch { }
             }

@@ -17,9 +17,22 @@ namespace SharpNetwork.SimpleHttp
         public const string HTTP_CONTENT_LEN = "Content-Length";
         public const string HTTP_CONNECTION = "Connection";
 
+        private Dictionary<string, string> m_CustomHeaders { get; set; }
+
         public MessageCodec(int maxMsgSize = 0)
         {
             if (maxMsgSize > 0) m_MaxMsgSize = maxMsgSize;
+        }
+
+        public MessageCodec(Dictionary<string, string> customHeaders)
+        {
+            if (customHeaders != null) m_CustomHeaders = new Dictionary<string, string>(customHeaders);
+        }
+
+        public MessageCodec(int maxMsgSize, Dictionary<string, string> customHeaders)
+        {
+            if (maxMsgSize > 0) m_MaxMsgSize = maxMsgSize;
+            if (customHeaders != null) m_CustomHeaders = new Dictionary<string, string>(customHeaders);
         }
 
         public void Encode(Session session, Object message, MemoryStream stream)
@@ -31,6 +44,10 @@ namespace SharpNetwork.SimpleHttp
                 if (msg.IsString())
                 {
                     string str = "";
+                    if (m_CustomHeaders.Count > 0)
+                    {
+                        foreach(var item in m_CustomHeaders) msg.Headers[item.Key] = item.Value;
+                    }
                     if (!string.IsNullOrWhiteSpace(msg.MessageContent))
                     {
                         if (!msg.Headers.ContainsKey(HTTP_CONTENT_TYPE))

@@ -68,7 +68,7 @@ namespace SharpNetwork.Core
 
         private void CheckIdleSessions()
         {
-            while (m_IdleType >= 0 && m_IdleType <= 2 && m_IdleTime > 0)
+            while (m_IdleType >= 0 && m_IdleTime > 0)
             {
                 Dictionary<Int32, Session> sessions = GetSessions();
                 if (sessions != null && sessions.Count > 0)
@@ -119,11 +119,11 @@ namespace SharpNetwork.Core
                     m_CheckIdleThread = null;
                 }
             }
-            else if (opType >= 0 && opType <= 2)
+            else if (opType >= 0)
             {
                 m_NeedCheckIdle = false;
 
-                if (m_IdleTime <= 0 || m_IdleType < 0 || m_IdleType > 2)
+                if (m_IdleTime <= 0 || m_IdleType < 0)
                 {
                     if (m_CheckIdleThread != null)
                     {
@@ -153,7 +153,7 @@ namespace SharpNetwork.Core
         {
             m_NeedCheckIdle = true;
 
-            if (m_IdleType >= 0 && m_IdleType <= 2 && m_IdleTime > 0)
+            if (m_IdleType >= 0 && m_IdleTime > 0)
             {
                 if (m_CheckIdleThread == null)
                 {

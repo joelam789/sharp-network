@@ -1,8 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Runtime.Serialization.Json;
-using System.Text;
 using System.Threading.Tasks;
 
 using SharpNetwork.Core;
@@ -70,17 +67,17 @@ namespace SharpNetwork.SimpleProtocol
         private static ConcurrentExclusiveSchedulerPair m_TaskSchedulerPair
             = new ConcurrentExclusiveSchedulerPair();
 
-        private IJsonCodec m_JsonCodec = null;
-        private static IJsonCodec m_CurrentJsonCodec = null;
-        private static IJsonCodec m_DefaultJsonCodec = new SimpleJsonCodec();
-        public static IJsonCodec DefaultJsonCodec
+        private ICommonJsonCodec m_JsonCodec = null;
+        private static ICommonJsonCodec m_CurrentJsonCodec = null;
+        private static ICommonJsonCodec m_DefaultJsonCodec = new SimpleJsonCodec();
+        public static ICommonJsonCodec DefaultJsonCodec
         {
             get
             {
                 return m_DefaultJsonCodec;
             }
         }
-        public static IJsonCodec JsonCodec
+        public static ICommonJsonCodec JsonCodec
         {
             get
             {
@@ -353,36 +350,4 @@ namespace SharpNetwork.SimpleProtocol
         }
     }
 
-    public interface IJsonCodec
-    {
-        string ToJsonString(object obj);
-        T ToJsonObject<T>(string str) where T : class;
-    }
-
-    public class SimpleJsonCodec : IJsonCodec
-    {
-        public string ToJsonString(object obj)
-        {
-            DataContractJsonSerializer serializer = new DataContractJsonSerializer(obj.GetType());
-            using (MemoryStream ms = new MemoryStream())
-            {
-                serializer.WriteObject(ms, obj);
-                return Encoding.UTF8.GetString(ms.ToArray());
-            }
-        }
-
-        public T ToJsonObject<T>(string str) where T : class
-        {
-            if (str == null || str.Length <= 0) return null;
-            else
-            {
-                DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(T));
-                using (MemoryStream ms = new MemoryStream(Encoding.UTF8.GetBytes(str)))
-                {
-                    return serializer.ReadObject(ms) as T;
-                }
-            }
-        }
-
-    }
 }

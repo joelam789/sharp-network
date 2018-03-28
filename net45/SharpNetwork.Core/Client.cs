@@ -118,7 +118,7 @@ namespace SharpNetwork.Core
             if (value <= 0) return;
             if (m_Session != null)
             {
-                m_Session.SetBufferSize(Session.IO_RECV_SEND, value);
+                m_Session.SetIoBufferSize(value);
             }
             m_IoBufferSize = value;
         }
@@ -206,13 +206,13 @@ namespace SharpNetwork.Core
                 m_Socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
 
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
                 if (m_IoHandler != null)
                 {
                     try
                     {
-                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, e.Message);
+                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex);
                     }
                     catch { }
                 }
@@ -252,7 +252,7 @@ namespace SharpNetwork.Core
                     {
                         try
                         {
-                            m_IoHandler.OnError(null, Session.ERROR_CONNECT, "Connection timeout");
+                            m_IoHandler.OnError(null, Session.ERROR_CONNECT, new Exception("Connection timeout"));
                         }
                         catch { }
                     }
@@ -262,13 +262,13 @@ namespace SharpNetwork.Core
                 }
 
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
                 if (m_IoHandler != null)
                 {
                     try
                     {
-                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, e.Message);
+                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex);
                     }
                     catch { }
                 }
@@ -330,13 +330,13 @@ namespace SharpNetwork.Core
 
                 client.Disconnect();
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
                 if (client.m_IoHandler != null)
                 {
                     try
                     {
-                        client.m_IoHandler.OnError(null, Session.ERROR_CONNECT, e.Message);
+                        client.m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex);
                     }
                     catch { }
                 }
@@ -379,13 +379,13 @@ namespace SharpNetwork.Core
 
                 client.Disconnect();
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
                 if (client.m_IoHandler != null)
                 {
                     try
                     {
-                        client.m_IoHandler.OnError(null, Session.ERROR_CONNECT, e.Message);
+                        client.m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex);
                     }
                     catch { }
                 }
