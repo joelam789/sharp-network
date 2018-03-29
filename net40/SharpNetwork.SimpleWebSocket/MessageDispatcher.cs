@@ -4,9 +4,6 @@ using System.Dynamic;
 using System.Reflection;
 using System.Text;
 
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
-
 using SharpNetwork.Core;
 
 namespace SharpNetwork.SimpleWebSocket
@@ -177,6 +174,7 @@ namespace SharpNetwork.SimpleWebSocket
 
     }
 
+    /*
     public class GenericMessageDispatcher : IMessageDispatcher
     {
         protected List<IGenericMessageHandler> m_Handlers = new List<IGenericMessageHandler>();
@@ -288,4 +286,5 @@ namespace SharpNetwork.SimpleWebSocket
         }
 
     }
+    */
 }

@@ -10,17 +10,21 @@ namespace SharpNetwork.Core
 {
     public class Session
     {
-        public const int ERROR_CONNECT = 0;
-        public const int ERROR_RECEIVE = 1;
-        public const int ERROR_SEND = 2;
+        public const int ERROR_LISTEN  = 0;
+        public const int ERROR_CONNECT = 1;
+        public const int ERROR_RECEIVE = 2;
+        public const int ERROR_SEND    = 4;
+        public const int ERROR_CODEC   = 8;
+        public const int ERROR_PROCESS = 16;
 
-        public const int IO_RECV_SEND = 0;
-        public const int IO_RECV = 1;
-        public const int IO_SEND = 2;
+        public const int IO_ANY     = 0;
+        public const int IO_RECEIVE = 1;
+        public const int IO_SEND    = 2;
+        public const int IO_BOTH    = 3;
 
         public const int ACT_KEEP_DEFAULT = 0;
-        public const int ACT_KEEP_OLD = 1;
-        public const int ACT_KEEP_NEW = 2;
+        public const int ACT_KEEP_OLD     = 1;
+        public const int ACT_KEEP_NEW     = 2;
 
         public Object UserData { get; set; }
 
@@ -38,11 +42,11 @@ namespace SharpNetwork.Core
 
         private Boolean m_IsGoingToClose = false;
 
-        private Int32 m_MaxReadQueueSize = 1024;
-        private Int32 m_MaxWriteQueueSize = 0;
+        public Int32 MaxReadQueueSize { get; set; }
+        public Int32 MaxWriteQueueSize { get; set; }
 
-        private Int32 m_FitReadQueueAction = ACT_KEEP_DEFAULT;
-        private Int32 m_FitWriteQueueAction = ACT_KEEP_DEFAULT;
+        public Int32 FitReadQueueAction { get; set; }
+        public Int32 FitWriteQueueAction { get; set; }
 
         private Int32 m_ReadSize = 0;
         private Byte[] m_ReadBuffer = null;
@@ -60,6 +64,21 @@ namespace SharpNetwork.Core
 
         private SessionGroup m_SessionGroup = null;
 
+        public static bool IsNetworkError(int errortype)
+        {
+            return (errortype & Session.ERROR_PROCESS) == 0 // non in-process error
+                && ((errortype & Session.ERROR_RECEIVE) != 0 || (errortype & Session.ERROR_SEND) != 0); // but io error
+        }
+
+        public static bool IsCodecError(int errortype)
+        {
+            return (errortype & Session.ERROR_CODEC) != 0;
+        }
+
+        public static bool IsProcessError(int errortype)
+        {
+            return (errortype & Session.ERROR_PROCESS) != 0;
+        }
 
         public Session(int id, Socket socket, INetworkEventHandler handler, INetworkFilter filter, bool needSsl = false)
         {
@@ -70,6 +89,12 @@ namespace SharpNetwork.Core
 
             m_IoHandler = handler;
             m_IoFilter = filter;
+
+            MaxReadQueueSize = 1024;
+            MaxWriteQueueSize = 0;
+
+            FitReadQueueAction = ACT_KEEP_DEFAULT;
+            FitWriteQueueAction = ACT_KEEP_DEFAULT;
 
             UserData = null;
         }
@@ -83,6 +108,12 @@ namespace SharpNetwork.Core
 
             m_IoHandler = handler;
             m_IoFilter = filter;
+
+            MaxReadQueueSize = 1024;
+            MaxWriteQueueSize = 0;
+
+            FitReadQueueAction = ACT_KEEP_DEFAULT;
+            FitWriteQueueAction = ACT_KEEP_DEFAULT;
 
             UserData = null;
         }
@@ -149,73 +180,43 @@ namespace SharpNetwork.Core
             return m_RemotePort;
         }
 
-        public int GetBufferSize(int iotype)
+        public int GetReceiveBufferSize()
         {
             Socket socket = GetSocket();
-
-            if (socket != null)
-            {
-                if (iotype == Session.IO_RECV) return socket.ReceiveBufferSize;
-                else if (iotype == Session.IO_SEND) return socket.SendBufferSize;
-            }
-
+            if (socket != null) return socket.ReceiveBufferSize;
             return 0;
         }
 
-        public void SetBufferSize(int iotype, int value)
+        public int GetSendBufferSize()
+        {
+            Socket socket = GetSocket();
+            if (socket != null) return socket.SendBufferSize;
+            return 0;
+        }
+
+        public void SetIoBufferSize(int value)
         {
             if (value <= 0) return;
-
             Socket socket = GetSocket();
-
             if (socket != null)
             {
-                if (iotype == Session.IO_RECV) socket.ReceiveBufferSize = value;
-                else if (iotype == Session.IO_SEND) socket.SendBufferSize = value;
-                else if (iotype == Session.IO_RECV_SEND)
-                {
-                    socket.ReceiveBufferSize = value;
-                    socket.SendBufferSize = value;
-                }
+                socket.ReceiveBufferSize = value;
+                socket.SendBufferSize = value;
             }
         }
 
-        public int GetMaxMessageQueueSize(int optype)
+        public void SetReceiveBufferSize(int value)
         {
-            if (optype == Session.IO_RECV) return m_MaxReadQueueSize;
-            else if (optype == Session.IO_SEND) return m_MaxWriteQueueSize;
-
-            return 0;
+            if (value <= 0) return;
+            Socket socket = GetSocket();
+            if (socket != null) socket.ReceiveBufferSize = value;
         }
 
-        public void SetMaxMessageQueueSize(int optype, int value)
+        public void SetSendBufferSize(int value)
         {
-            if (optype == 0)
-            {
-                m_MaxReadQueueSize = value;
-                m_MaxWriteQueueSize = value;
-            }
-            else if (optype == Session.IO_RECV) m_MaxReadQueueSize = value;
-            else if (optype == Session.IO_SEND) m_MaxWriteQueueSize = value;
-        }
-
-        public int GetQueueOverflowAction(int optype)
-        {
-            if (optype == Session.IO_RECV) return m_FitReadQueueAction;
-            else if (optype == Session.IO_SEND) return m_FitWriteQueueAction;
-
-            return 0;
-        }
-
-        public void SetQueueOverflowAction(int optype, int value)
-        {
-            if (optype == 0)
-            {
-                m_FitReadQueueAction = value;
-                m_FitWriteQueueAction = value;
-            }
-            else if (optype == Session.IO_RECV) m_FitReadQueueAction = value;
-            else if (optype == Session.IO_SEND) m_FitWriteQueueAction = value;
+            if (value <= 0) return;
+            Socket socket = GetSocket();
+            if (socket != null) socket.SendBufferSize = value;
         }
 
         public int GetSessionCount()
@@ -288,7 +289,14 @@ namespace SharpNetwork.Core
             }
             catch { }
 
-            if (m_IoHandler != null) { try { m_IoHandler.OnConnect(this); } catch { } }
+            if (m_IoHandler != null)
+            {
+                try
+                {
+                    m_IoHandler.OnConnect(this);
+                }
+                catch { }
+            }
 
             try
             {
@@ -308,7 +316,7 @@ namespace SharpNetwork.Core
                 {
                     try
                     {
-                        m_IoHandler.OnError(this, ERROR_RECEIVE, ex.Message);
+                        m_IoHandler.OnError(this, ERROR_RECEIVE, ex);
                     }
                     catch { }
                 }
@@ -338,13 +346,13 @@ namespace SharpNetwork.Core
                 else if (session.m_ReadSize > 0 && session.m_State > 0) session.Receive();
 
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
                 if (session != null && session.m_IoHandler != null)
                 {
                     try
                     {
-                        session.m_IoHandler.OnError(session, ERROR_RECEIVE, e.Message);
+                        session.m_IoHandler.OnError(session, ERROR_RECEIVE, ex);
                     }
                     catch { }
                 }
@@ -387,7 +395,7 @@ namespace SharpNetwork.Core
                         try
                         {
                             if (m_IoHandler != null)
-                                m_IoHandler.OnError(this, Session.ERROR_RECEIVE, "Decode Error: " + ex.Message);
+                                m_IoHandler.OnError(this, Session.ERROR_CODEC | Session.ERROR_RECEIVE, ex);
                         }
                         catch { }
                     }
@@ -422,13 +430,13 @@ namespace SharpNetwork.Core
                     int queueSize = m_IncomingMessageQueue.Count;
                     foreach (Object obj in outputList)
                     {
-                        if (m_MaxReadQueueSize > 0)
+                        if (MaxReadQueueSize > 0)
                         {
-                            if (queueSize >= m_MaxReadQueueSize)
+                            if (queueSize >= MaxReadQueueSize)
                             {
                                 full = true;
 
-                                if (m_FitReadQueueAction == ACT_KEEP_NEW)
+                                if (FitReadQueueAction == ACT_KEEP_NEW)
                                 {
                                     // give up the old one ...
                                     if (m_IncomingMessageQueue.Count > 0) m_IncomingMessageQueue.Dequeue();
@@ -445,11 +453,11 @@ namespace SharpNetwork.Core
 
                     if (full)
                     {
-                        if (m_FitReadQueueAction == ACT_KEEP_DEFAULT && m_IoHandler != null)
+                        if (FitReadQueueAction == ACT_KEEP_DEFAULT && m_IoHandler != null)
                         {
                             try
                             {
-                                m_IoHandler.OnError(this, Session.ERROR_RECEIVE, "Incoming queue is full");
+                                m_IoHandler.OnError(this, Session.ERROR_RECEIVE, new Exception("Incoming queue is full"));
                             }
                             catch { }
                         }
@@ -497,7 +505,14 @@ namespace SharpNetwork.Core
             {
                 // when state is changed from "connected" to "disconnected", fire the event.
                 // please note that now the socket is (probably) still connecting and the session is still in group.
-                if (m_IoHandler != null) { try { m_IoHandler.OnDisconnect(this); } catch { } }
+                if (m_IoHandler != null)
+                {
+                    try
+                    {
+                        m_IoHandler.OnDisconnect(this);
+                    }
+                    catch { }
+                }
             }
 
             if (m_Stream != null)
@@ -544,17 +559,17 @@ namespace SharpNetwork.Core
         public void Send(Object message)
         {
             if (m_Stream == null || m_State <= 0 || m_IsGoingToClose || message == null) return;
-            if (m_MaxWriteQueueSize > 0 && m_OutgoingMessageQueue.Count >= m_MaxWriteQueueSize)
+            if (MaxWriteQueueSize > 0 && m_OutgoingMessageQueue.Count >= MaxWriteQueueSize)
             {
-                if (m_FitWriteQueueAction == ACT_KEEP_DEFAULT && m_IoHandler != null)
+                if (FitWriteQueueAction == ACT_KEEP_DEFAULT && m_IoHandler != null)
                 {
                     try
                     {
-                        m_IoHandler.OnError(this, Session.ERROR_SEND, "Outgoing queue is full");
+                        m_IoHandler.OnError(this, Session.ERROR_SEND, new Exception("Outgoing queue is full"));
                     }
                     catch { }
                 }
-                if (m_FitWriteQueueAction == ACT_KEEP_DEFAULT || m_FitWriteQueueAction == ACT_KEEP_OLD) return;
+                if (FitWriteQueueAction == ACT_KEEP_DEFAULT || FitWriteQueueAction == ACT_KEEP_OLD) return;
             }
 
             MemoryStream stream = new MemoryStream();
@@ -573,9 +588,9 @@ namespace SharpNetwork.Core
                 lock (m_OutgoingMessageQueue)
                 {
                     bool sending = m_OutgoingMessageQueue.Count > 0;
-                    if (m_MaxWriteQueueSize > 0
-                        && m_OutgoingMessageQueue.Count >= m_MaxWriteQueueSize
-                        && m_FitWriteQueueAction == ACT_KEEP_NEW)
+                    if (MaxWriteQueueSize > 0
+                        && m_OutgoingMessageQueue.Count >= MaxWriteQueueSize
+                        && FitWriteQueueAction == ACT_KEEP_NEW)
                     {
                         m_OutgoingMessageQueue.Dequeue(); // just remove one old packet, even it's being sent
                     }
@@ -590,7 +605,7 @@ namespace SharpNetwork.Core
                 {
                     try
                     {
-                        m_IoHandler.OnError(this, Session.ERROR_SEND, (encodeOK ? "" : "Encode Error: ") + ex.Message);
+                        m_IoHandler.OnError(this, encodeOK ? Session.ERROR_SEND : (Session.ERROR_CODEC | Session.ERROR_SEND), ex);
                     }
                     catch { }
                 }
@@ -640,13 +655,13 @@ namespace SharpNetwork.Core
                 session.ProcessOutgoingData();
 
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
                 if (session != null && session.m_IoHandler != null)
                 {
                     try
                     {
-                        session.m_IoHandler.OnError(session, ERROR_SEND, e.Message);
+                        session.m_IoHandler.OnError(session, ERROR_SEND | ERROR_PROCESS, ex);
                     }
                     catch { }
                 }
@@ -700,7 +715,17 @@ namespace SharpNetwork.Core
                     {
                         if (m_State > 0 && m_IoHandler != null) m_IoHandler.OnReceive(this, msg);
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        if (m_IoHandler != null)
+                        {
+                            try
+                            {
+                                m_IoHandler.OnError(this, ERROR_RECEIVE | ERROR_PROCESS, ex);
+                            }
+                            catch { }
+                        }
+                    }
                 }
                 else
                 {
@@ -715,10 +740,10 @@ namespace SharpNetwork.Core
             if (noRest && m_IsGoingToClose) Close(true);
         }
 
-        public bool TestIdle(int opType, int idleTime)
+        public int TestIdle(int opType, int idleTime)
         {
-            if (m_State <= 0 || m_IsGoingToClose) return false;
-            if (opType < 0 || opType > 2 || idleTime <= 0) return false;
+            if (m_State <= 0 || m_IsGoingToClose) return 0;
+            if (opType < 0 || idleTime <= 0) return 0;
 
             DateTime currentTime = DateTime.Now;
 
@@ -726,18 +751,28 @@ namespace SharpNetwork.Core
             double writeIdleTime = (currentTime - m_LastWriteTime).TotalSeconds;
 
             bool isIdle = false;
+            int idleFlag = 0;
 
-            if (opType == IO_RECV_SEND)
+            if (opType == IO_ANY)
+            {
+                if (readIdleTime > idleTime) idleFlag |= IO_RECEIVE;
+                if (writeIdleTime > idleTime) idleFlag |= IO_SEND;
+                isIdle = idleFlag > 0;
+            }
+            else if (opType == IO_BOTH)
             {
                 isIdle = readIdleTime > idleTime && writeIdleTime > idleTime;
+                if (isIdle) idleFlag = IO_BOTH;
             }
-            else if (opType == IO_RECV)
+            else if (opType == IO_RECEIVE)
             {
                 isIdle = readIdleTime > idleTime;
+                if (isIdle) idleFlag = IO_RECEIVE;
             }
             else if (opType == IO_SEND)
             {
                 isIdle = writeIdleTime > idleTime;
+                if (isIdle) idleFlag = IO_SEND;
             }
 
             if (isIdle)
@@ -746,14 +781,15 @@ namespace SharpNetwork.Core
                 {
                     try
                     {
-                        m_IoHandler.OnIdle(this, opType);
+                        // isIdle is true, so idleFlag > 0 (IO_RECEIVE/IO_SEND/IO_BOTH)
+                        m_IoHandler.OnIdle(this, idleFlag);
                     }
                     catch { }
                 }
-                return true;
+                return idleFlag;
             }
 
-            return false;
+            return 0;
         }
 
     }

@@ -7,7 +7,6 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Schedulers;
 
-using Newtonsoft.Json;
 using SharpNetwork.Core;
 
 namespace SharpNetwork.SimpleWebSocket
@@ -53,6 +52,28 @@ namespace SharpNetwork.SimpleWebSocket
         public string MessageContent { get; set; }
         public byte[] RawContent { get; set; }
 
+        private ICommonJsonCodec m_JsonCodec = null;
+        private static ICommonJsonCodec m_CurrentJsonCodec = null;
+        private static ICommonJsonCodec m_DefaultJsonCodec = new SimpleJsonCodec();
+        public static ICommonJsonCodec DefaultJsonCodec
+        {
+            get
+            {
+                return m_DefaultJsonCodec;
+            }
+        }
+        public static ICommonJsonCodec JsonCodec
+        {
+            get
+            {
+                return m_CurrentJsonCodec == null ? m_DefaultJsonCodec : m_CurrentJsonCodec;
+            }
+            set
+            {
+                m_CurrentJsonCodec = value;
+            }
+        }
+
         public WebMessage()
         {
             ReceivingState = STATE_WAIT_FOR_HEADER;
@@ -67,6 +88,9 @@ namespace SharpNetwork.SimpleWebSocket
 
             MessageContent = "";
             RawContent = null;
+
+            m_JsonCodec = m_CurrentJsonCodec;
+            if (m_JsonCodec == null) m_JsonCodec = m_DefaultJsonCodec;
         }
 
         public WebMessage(string msgContent)
@@ -117,18 +141,18 @@ namespace SharpNetwork.SimpleWebSocket
             return MessageType == MSG_TYPE_CLOSE;
         }
 
-        public void FromJsonObject<T>(T obj)
+        public void FromJsonObject<T>(T obj) where T : class
         {
-            MessageContent = JsonConvert.SerializeObject(obj);
+            MessageContent = m_JsonCodec.ToJsonString(obj);
         }
 
-        public T ToJsonObject<T>()
+        public T ToJsonObject<T>() where T : class
         {
             try
             {
                 if (MessageContent.Length > 0)
                 {
-                    return JsonConvert.DeserializeObject<T>(MessageContent);
+                    return m_JsonCodec.ToJsonObject<T>(MessageContent);
                 }
                 else
                 {
@@ -141,13 +165,14 @@ namespace SharpNetwork.SimpleWebSocket
             }
         }
 
-        public static U ToJsonObject<U>(String str)
+        public static U ToJsonObject<U>(String str) where U : class
         {
             try
             {
                 if (str.Length > 0)
                 {
-                    return JsonConvert.DeserializeObject<U>(str);
+                    var codec = m_CurrentJsonCodec == null ? m_DefaultJsonCodec : m_CurrentJsonCodec;
+                    return codec.ToJsonObject<U>(str);
                 }
                 else
                 {
@@ -160,12 +185,13 @@ namespace SharpNetwork.SimpleWebSocket
             }
         }
 
-        public static String ToJsonString<U>(U obj)
+        public static String ToJsonString<U>(U obj) where U : class
         {
             string str = "";
             try
             {
-                str = JsonConvert.SerializeObject(obj);
+                var codec = m_CurrentJsonCodec == null ? m_DefaultJsonCodec : m_CurrentJsonCodec;
+                str = codec.ToJsonString(obj);
             }
             catch { }
             return str;
@@ -335,7 +361,7 @@ namespace SharpNetwork.SimpleWebSocket
             session.Send(handshakeMsg);
         }
 
-        public static void Send<T>(Session session, T obj, bool needmask = false)
+        public static void Send<T>(Session session, T obj, bool needmask = false) where T : class
         {
             if (session != null)
             {
@@ -386,7 +412,7 @@ namespace SharpNetwork.SimpleWebSocket
             session.Send(msg);
         }
 
-        public static void SendByteArray<T>(Session session, T obj, byte[] bytes, int length = -1, bool needmask = false)
+        public static void SendByteArray<T>(Session session, T obj, byte[] bytes, int length = -1, bool needmask = false) where T : class
         {
             MemoryStream stream = new MemoryStream();
             BinaryWriter writer = new BinaryWriter(stream);

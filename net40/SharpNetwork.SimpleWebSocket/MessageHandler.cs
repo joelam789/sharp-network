@@ -33,7 +33,7 @@ namespace SharpNetwork.SimpleWebSocket
             }
         }
 
-        public void Send<TMessage>(Session session, TMessage obj)
+        public void Send<TMessage>(Session session, TMessage obj) where TMessage : class
         {
             WebMessage.Send<TMessage>(session, obj);
         }
@@ -48,7 +48,7 @@ namespace SharpNetwork.SimpleWebSocket
             WebMessage.SendByteArray(session, bytes, length);
         }
 
-        public void SendByteArray<TMessage>(Session session, TMessage obj, byte[] bytes, int length = -1)
+        public void SendByteArray<TMessage>(Session session, TMessage obj, byte[] bytes, int length = -1) where TMessage : class
         {
             WebMessage.SendByteArray<TMessage>(session, obj, bytes, length);
         }
@@ -67,7 +67,7 @@ namespace SharpNetwork.SimpleWebSocket
 
     }
 
-    public class GenericMessageHandler<T> : IGenericMessageHandler
+    public class GenericMessageHandler<T> : IGenericMessageHandler where T : class
     {
         protected Dictionary<string, List<IMessageChecker>> m_Rules = new Dictionary<string, List<IMessageChecker>>();
 
@@ -94,7 +94,7 @@ namespace SharpNetwork.SimpleWebSocket
             else return null;
         }
 
-        public void Send<TMessage>(Session session, TMessage obj)
+        public void Send<TMessage>(Session session, TMessage obj) where TMessage : class
         {
             WebMessage.Send<TMessage>(session, obj);
         }

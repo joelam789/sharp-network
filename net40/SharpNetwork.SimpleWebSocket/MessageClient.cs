@@ -106,7 +106,7 @@ namespace SharpNetwork.SimpleWebSocket
             Disconnect();
         }
 
-        public void Send<T>(T obj, bool needmask = true)
+        public void Send<T>(T obj, bool needmask = true) where T : class
         {
             if (GetState() <= 0) return;
             WebMessage.Send<T>(GetSession(), obj, needmask);

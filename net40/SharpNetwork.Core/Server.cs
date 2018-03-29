@@ -175,7 +175,7 @@ namespace SharpNetwork.Core
                     {
                         try
                         {
-                            m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex.Message);
+                            m_IoHandler.OnError(null, Session.ERROR_LISTEN, ex);
                         }
                         catch { }
                     }
@@ -265,7 +265,7 @@ namespace SharpNetwork.Core
                 {
                     try
                     {
-                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex.Message);
+                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex);
                     }
                     catch { }
                 }
@@ -305,7 +305,7 @@ namespace SharpNetwork.Core
                 {
                     try
                     {
-                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex.Message);
+                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex);
                     }
                     catch { }
                 }
@@ -339,7 +339,7 @@ namespace SharpNetwork.Core
                 {
                     try
                     {
-                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex.Message);
+                        m_IoHandler.OnError(null, Session.ERROR_LISTEN, ex);
                     }
                     catch { }
                 }
@@ -377,7 +377,7 @@ namespace SharpNetwork.Core
                     {
                         try
                         {
-                            m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex.Message);
+                            m_IoHandler.OnError(null, Session.ERROR_LISTEN, ex);
                         }
                         catch { }
                     }
@@ -423,7 +423,7 @@ namespace SharpNetwork.Core
                 {
                     try
                     {
-                        m_IoHandler.OnError(null, Session.ERROR_CONNECT, ex.Message);
+                        m_IoHandler.OnError(null, Session.ERROR_LISTEN, ex);
                     }
                     catch { }
                 }

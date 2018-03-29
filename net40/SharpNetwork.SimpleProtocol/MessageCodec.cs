@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using System.IO;
+using System.Text;
 
 using SharpNetwork.Core;
 
@@ -117,7 +117,7 @@ namespace SharpNetwork.SimpleProtocol
                     netMsg.RawContent = bytes;
                     netMsg.ReceivingState = NetMessage.STATE_READY;
 
-                    netMsg.IoFlag = Session.IO_RECV; // receiving ...
+                    netMsg.IoFlag = Session.IO_RECEIVE; // receiving ...
                     output.Add(netMsg);
                     total++;
 
@@ -157,7 +157,7 @@ namespace SharpNetwork.SimpleProtocol
                         else
                         {
                             netMsg.ReceivingState = NetMessage.STATE_READY;
-                            netMsg.IoFlag = Session.IO_RECV; // receiving ...
+                            netMsg.IoFlag = Session.IO_RECEIVE; // receiving ...
                             output.Add(netMsg);
                             total++;
                             netMsg = new NetMessage();
@@ -180,7 +180,7 @@ namespace SharpNetwork.SimpleProtocol
                         netMsg.RawContent = bytes;
                         netMsg.ReceivingState = NetMessage.STATE_READY;
 
-                        netMsg.IoFlag = Session.IO_RECV; // receiving ...
+                        netMsg.IoFlag = Session.IO_RECEIVE; // receiving ...
                         output.Add(netMsg);
                         total++;
                         netMsg = new NetMessage();

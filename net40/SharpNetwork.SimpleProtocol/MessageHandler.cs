@@ -11,7 +11,7 @@ namespace SharpNetwork.SimpleProtocol
         public const int FAIL = -1;
     }
 
-    public class MessageHandler<T> : IHandler
+    public class MessageHandler<T> : IHandler where T : class
     {
         private int m_MessageType = 0;
 
@@ -25,17 +25,17 @@ namespace SharpNetwork.SimpleProtocol
             NetMessage.Send<T>(session, m_MessageType, obj, flag);
         }
 
-        public void Send<U>(Session session, int msgType, U obj, int flag = 0)
+        public void Send<U>(Session session, int msgType, U obj, int flag = 0) where U : class
         {
             NetMessage.Send<U>(session, msgType, obj, flag);
         }
 
-        public static U ToJsonObject<U>(String str)
+        public static U ToJsonObject<U>(String str) where U : class
         {
             return NetMessage.ToJsonObject<U>(str);
         }
 
-        public static String ToJsonString<U>(U obj)
+        public static String ToJsonString<U>(U obj) where U : class
         {
             return NetMessage.ToJsonString<U>(obj);
         }

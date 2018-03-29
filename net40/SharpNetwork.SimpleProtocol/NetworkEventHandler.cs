@@ -52,7 +52,7 @@ namespace SharpNetwork.SimpleProtocol
             {
                 try
                 {
-                    OnError(session, Session.ERROR_RECEIVE, ex.Message);
+                    OnError(session, Session.ERROR_RECEIVE, ex);
                 }
                 catch { }
             }

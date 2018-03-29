@@ -76,7 +76,7 @@ namespace SharpNetwork.SimpleProtocol
 
         }
 
-        public void Send<T>(int msgType, T obj, int flag = 0)
+        public void Send<T>(int msgType, T obj, int flag = 0) where T: class
         {
             if (GetState() <= 0) return;
             NetMessage.Send<T>(GetSession(), msgType, obj, flag);
