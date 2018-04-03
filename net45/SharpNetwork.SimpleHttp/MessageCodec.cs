@@ -17,19 +17,19 @@ namespace SharpNetwork.SimpleHttp
         public const string HTTP_CONTENT_LEN = "Content-Length";
         public const string HTTP_CONNECTION = "Connection";
 
-        private Dictionary<string, string> m_CustomHeaders { get; set; }
+        private Dictionary<string, string> m_CustomHeaders = null;
 
         public MessageCodec(int maxMsgSize = 0)
         {
             if (maxMsgSize > 0) m_MaxMsgSize = maxMsgSize;
         }
 
-        public MessageCodec(Dictionary<string, string> customHeaders)
+        public MessageCodec(IDictionary<string, string> customHeaders)
         {
             if (customHeaders != null) m_CustomHeaders = new Dictionary<string, string>(customHeaders);
         }
 
-        public MessageCodec(int maxMsgSize, Dictionary<string, string> customHeaders)
+        public MessageCodec(int maxMsgSize, IDictionary<string, string> customHeaders)
         {
             if (maxMsgSize > 0) m_MaxMsgSize = maxMsgSize;
             if (customHeaders != null) m_CustomHeaders = new Dictionary<string, string>(customHeaders);
@@ -44,17 +44,26 @@ namespace SharpNetwork.SimpleHttp
                 if (msg.IsString())
                 {
                     string str = "";
-                    if (m_CustomHeaders.Count > 0)
+
+                    if (m_CustomHeaders != null && m_CustomHeaders.Count > 0)
                     {
                         foreach(var item in m_CustomHeaders) msg.Headers[item.Key] = item.Value;
                     }
+
+                    if (!msg.Headers.ContainsKey(HTTP_CONTENT_TYPE))
+                        msg.Headers.Add(HTTP_CONTENT_TYPE, "text/plain; charset=utf-8");
+
                     if (!string.IsNullOrWhiteSpace(msg.MessageContent))
                     {
-                        if (!msg.Headers.ContainsKey(HTTP_CONTENT_TYPE))
-                            msg.Headers.Add(HTTP_CONTENT_TYPE, "text/plain; charset=utf-8");
                         if (!msg.Headers.ContainsKey(HTTP_CONTENT_LEN))
                             msg.Headers.Add(HTTP_CONTENT_LEN, msg.MessageContent.Length.ToString());
                     }
+                    else
+                    {
+                        if (!msg.Headers.ContainsKey(HTTP_CONTENT_LEN))
+                            msg.Headers.Add(HTTP_CONTENT_LEN, "0");
+                    }
+
                     if (msg.RequestMethod.Length > 0) // should be a request
                     {
                         str = string.Format("{0} {1} {2}\r\n{3}\r\n\r\n{4}", msg.RequestMethod, Uri.EscapeDataString(msg.RequestUrl), msg.ProtocolVersion,

@@ -168,9 +168,9 @@ namespace SharpNetwork.SimpleHttp
             return MessageType == MSG_TYPE_BINARY;
         }
 
-        public void SetHeaders(Dictionary<string, string> headers)
+        public void SetHeaders(IDictionary<string, string> headers)
         {
-            Headers = new Dictionary<string, string>(headers);
+            if (headers != null) Headers = new Dictionary<string, string>(headers);
         }
 
         public static Stack<Object> GetSessionBuffer(Session session, bool needCheck = false)
@@ -335,7 +335,21 @@ namespace SharpNetwork.SimpleHttp
             return str;
         }
 
-        
+        public static void Send<TMessage>(Session session, TMessage obj, IDictionary<string, string> headers = null) where TMessage : class
+        {
+            var msg = new HttpMessage(HttpMessage.ToJsonString<TMessage>(obj));
+            if (headers != null) msg.SetHeaders(headers);
+            session.Send(msg);
+        }
+
+        public static void Send(Session session, string str, IDictionary<string, string> headers = null)
+        {
+            var msg = new HttpMessage(str);
+            if (headers != null) msg.SetHeaders(headers);
+            session.Send(msg);
+        }
+
+
     }
 
 }

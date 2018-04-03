@@ -34,18 +34,14 @@ namespace SharpNetwork.SimpleHttp
             }
         }
 
-        public void Send<TMessage>(Session session, TMessage obj, Dictionary<string, string> headers = null) where TMessage : class
+        public void Send<TMessage>(Session session, TMessage obj, IDictionary<string, string> headers = null) where TMessage : class
         {
-            var msg = new HttpMessage(HttpMessage.ToJsonString<TMessage>(obj));
-            if (headers != null) msg.SetHeaders(headers);
-            session.Send(msg);
+            HttpMessage.Send<TMessage>(session, obj, headers);
         }
 
-        public void Send(Session session, string str, Dictionary<string, string> headers = null)
+        public void Send(Session session, string str, IDictionary<string, string> headers = null)
         {
-            var msg = new HttpMessage(str);
-            if (headers != null) msg.SetHeaders(headers);
-            session.Send(msg);
+            HttpMessage.Send(session, str, headers);
         }
 
         public virtual void ProcessMessage(Session session, T msg)

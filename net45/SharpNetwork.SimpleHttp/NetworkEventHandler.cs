@@ -14,6 +14,12 @@ namespace SharpNetwork.SimpleHttp
 
         public bool IsOrderlyProcess { get; set; }
 
+        public NetworkEventHandler() : base()
+        {
+            m_MessageHandlerManager = null;
+            IsOrderlyProcess = false;
+        }
+
         public NetworkEventHandler(HttpRouter messageHandlerManager) : base()
         {
             m_MessageHandlerManager = messageHandlerManager;
