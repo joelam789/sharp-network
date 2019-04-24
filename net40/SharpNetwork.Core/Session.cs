@@ -137,25 +137,29 @@ namespace SharpNetwork.Core
         {
             Socket socket = null;
 
-            if (m_Stream != null)
+            try
             {
-                if (m_Stream is NetworkStream)
+                if (m_Stream != null)
                 {
-                    socket = m_Stream.GetType()
-                                            .GetProperty("Socket", BindingFlags.NonPublic | BindingFlags.Instance)
-                                            .GetValue(m_Stream, null) as Socket;
-                }
-                else if (m_Stream is SslStream)
-                {
-                    var stream = m_Stream.GetType()
-                                            .GetProperty("InnerStream", BindingFlags.NonPublic | BindingFlags.Instance)
-                                            .GetValue(m_Stream, null);
-                    if (stream != null)
-                        socket = stream.GetType()
-                                            .GetProperty("Socket", BindingFlags.NonPublic | BindingFlags.Instance)
-                                            .GetValue(stream, null) as Socket;
+                    if (m_Stream is NetworkStream)
+                    {
+                        socket = m_Stream.GetType()
+                                                .GetProperty("Socket", BindingFlags.NonPublic | BindingFlags.Instance)
+                                                .GetValue(m_Stream, null) as Socket;
+                    }
+                    else if (m_Stream is SslStream)
+                    {
+                        var stream = m_Stream.GetType()
+                                                .GetProperty("InnerStream", BindingFlags.NonPublic | BindingFlags.Instance)
+                                                .GetValue(m_Stream, null);
+                        if (stream != null)
+                            socket = stream.GetType()
+                                                .GetProperty("Socket", BindingFlags.NonPublic | BindingFlags.Instance)
+                                                .GetValue(stream, null) as Socket;
+                    }
                 }
             }
+            catch { }
 
             return socket;
         }
@@ -297,6 +301,8 @@ namespace SharpNetwork.Core
                 }
                 catch { }
             }
+
+            if (m_Stream == null) socket = null;
 
             try
             {
