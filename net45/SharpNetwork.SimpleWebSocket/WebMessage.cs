@@ -15,6 +15,7 @@ namespace SharpNetwork.SimpleWebSocket
         public const int WEB_MSG_BUF_CODE = -1;
         public const int WEB_MSG_DATA_CODE = -2;
         public const int WEB_MSG_TASK_CODE = -3;
+        public const int WEB_MSG_HEADER_CODE = -4;
 
         public const int STATE_WAIT_FOR_HEADER = 0;
         public const int STATE_WAIT_FOR_BODY = 1;
@@ -50,6 +51,8 @@ namespace SharpNetwork.SimpleWebSocket
 
         public string MessageContent { get; set; }
         public byte[] RawContent { get; set; }
+
+        public Dictionary<string, string> Headers { get; set; }
 
         //private static ConcurrentExclusiveSchedulerPair m_TaskSchedulerPair 
         //    = new ConcurrentExclusiveSchedulerPair(TaskScheduler.Default, 1);
@@ -93,6 +96,8 @@ namespace SharpNetwork.SimpleWebSocket
 
             MessageContent = "";
             RawContent = null;
+
+            Headers = new Dictionary<string, string>();
 
             m_JsonCodec = m_CurrentJsonCodec;
             if (m_JsonCodec == null) m_JsonCodec = m_DefaultJsonCodec;
@@ -226,6 +231,35 @@ namespace SharpNetwork.SimpleWebSocket
             else
             {
                 result = attrMap[WEB_MSG_BUF_CODE] as Stack<Object>;
+            }
+
+            return result;
+        }
+
+        public static Dictionary<string, string> GetIncomingHeaders(Session session, bool needCheck = false)
+        {
+            Dictionary<string, string> result = null;
+            Dictionary<int, object> attrMap = session.GetAttributes();
+
+            if (needCheck)
+            {
+                lock (attrMap)
+                {
+                    if (attrMap.ContainsKey(WEB_MSG_HEADER_CODE))
+                    {
+                        result = attrMap[WEB_MSG_HEADER_CODE] as Dictionary<string, string>;
+                        if (result == null) attrMap.Remove(WEB_MSG_HEADER_CODE);
+                    }
+                    if (result == null)
+                    {
+                        result = new Dictionary<string, string>();
+                        attrMap.Add(WEB_MSG_HEADER_CODE, result);
+                    }
+                }
+            }
+            else
+            {
+                result = attrMap[WEB_MSG_HEADER_CODE] as Dictionary<string, string>;
             }
 
             return result;

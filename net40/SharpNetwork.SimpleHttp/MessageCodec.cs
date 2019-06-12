@@ -206,6 +206,12 @@ namespace SharpNetwork.SimpleHttp
                             netMsg.Headers.Add(hname, hvalue);
                         }
                     }
+
+                    var incomingHeaders = HttpMessage.GetIncomingHeaders(session);
+                    incomingHeaders.Clear();
+                    foreach (var headerItem in netMsg.Headers)
+                        incomingHeaders.Add(headerItem.Key, headerItem.Value);
+
                     if (netMsg.Headers.ContainsKey(HTTP_CONTENT_LEN))
                     {
                         netMsg.ContentSize = Convert.ToInt32(netMsg.Headers[HTTP_CONTENT_LEN]);

@@ -274,6 +274,8 @@ namespace SharpNetwork.SimpleWebSocket
 
                         foreach (string oneline in rawClientHandshakeLines)
                         {
+                            string line = String.Copy(oneline);
+
                             if (!foundUrl && oneline.Contains(HTTP_HEADER_SIGN))
                             {
                                 if (oneline.Contains(HTTP_SERVER_HEADER_SIGN))
@@ -298,7 +300,22 @@ namespace SharpNetwork.SimpleWebSocket
                                 acceptKey = ComputeWebSocketHandshakeSecurityHash09(oneline.Substring(oneline.IndexOf(":") + 2));
                                 foundKey = true;
                             }
+
+                            int separator = line.IndexOf(':');
+                            if (separator > 0)
+                            {
+                                string hname = line.Substring(0, separator);
+                                int hpos = separator + 1;
+                                while ((hpos < line.Length) && (line[hpos] == ' ')) hpos++;
+                                string hvalue = line.Substring(hpos, line.Length - hpos);
+                                netMsg.Headers.Add(hname, hvalue);
+                            }
                         }
+
+                        var incomingHeaders = WebMessage.GetIncomingHeaders(session);
+                        incomingHeaders.Clear();
+                        foreach (var headerItem in netMsg.Headers)
+                            incomingHeaders.Add(headerItem.Key, headerItem.Value);
 
                         if (acceptKey != null && acceptKey.Length > 0) 
                             handshakeMsg = String.Format(WEBSOCK_HANDSHAKE_REPLY_MSG, acceptKey);
