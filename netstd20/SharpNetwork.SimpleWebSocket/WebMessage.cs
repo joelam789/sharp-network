@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,6 +17,7 @@ namespace SharpNetwork.SimpleWebSocket
         public const int WEB_MSG_DATA_CODE = -2;
         public const int WEB_MSG_TASK_CODE = -3;
         public const int WEB_MSG_HEADER_CODE = -4;
+        public const int WEB_MSG_URL_INFO_CODE = -5;
 
         public const int STATE_WAIT_FOR_HEADER = 0;
         public const int STATE_WAIT_FOR_BODY = 1;
@@ -265,9 +267,33 @@ namespace SharpNetwork.SimpleWebSocket
             return result;
         }
 
-        public static Dictionary<string, object> GetSessionData(Session session, bool needCheck = false)
+        public static void SetIncomingHeaders(Session session, Dictionary<string, string> headers, bool needCheck = false)
         {
-            Dictionary<string, object> result = null;
+            Dictionary<int, object> attrMap = session.GetAttributes();
+
+            if (needCheck)
+            {
+                lock (attrMap)
+                {
+                    if (attrMap.ContainsKey(WEB_MSG_HEADER_CODE))
+                    {
+                        attrMap[WEB_MSG_HEADER_CODE] = headers;
+                    }
+                    else
+                    {
+                        attrMap.Add(WEB_MSG_HEADER_CODE, headers);
+                    }
+                }
+            }
+            else
+            {
+                attrMap[WEB_MSG_HEADER_CODE] = headers;
+            }
+        }
+
+        public static ConcurrentDictionary<string, object> GetSessionData(Session session, bool needCheck = false)
+        {
+            ConcurrentDictionary<string, object> result = null;
             Dictionary<int, object> attrMap = session.GetAttributes();
 
             if (needCheck)
@@ -276,19 +302,19 @@ namespace SharpNetwork.SimpleWebSocket
                 {
                     if (attrMap.ContainsKey(WEB_MSG_DATA_CODE))
                     {
-                        result = attrMap[WEB_MSG_DATA_CODE] as Dictionary<string, object>;
+                        result = attrMap[WEB_MSG_DATA_CODE] as ConcurrentDictionary<string, object>;
                         if (result == null) attrMap.Remove(WEB_MSG_DATA_CODE);
                     }
                     if (result == null)
                     {
-                        result = new Dictionary<string, object>();
+                        result = new ConcurrentDictionary<string, object>();
                         attrMap.Add(WEB_MSG_DATA_CODE, result);
                     }
                 }
             }
             else
             {
-                result = attrMap[WEB_MSG_DATA_CODE] as Dictionary<string, object>;
+                result = attrMap[WEB_MSG_DATA_CODE] as ConcurrentDictionary<string, object>;
             }
 
             return result;
@@ -296,14 +322,15 @@ namespace SharpNetwork.SimpleWebSocket
 
         public static void SetSessionData(Session session, string dataName, object dataValue)
         {
-            Dictionary<string, object> dataMap = GetSessionData(session);
-            if (dataMap.ContainsKey(dataName)) dataMap.Remove(dataName);
-            dataMap.Add(dataName, dataValue);
+            var dataMap = GetSessionData(session);
+            object oldValue = null;
+            if (dataMap.ContainsKey(dataName)) dataMap.TryRemove(dataName, out oldValue);
+            dataMap.TryAdd(dataName, dataValue);
         }
 
         public static object GetSessionData(Session session, string dataName)
         {
-            Dictionary<string, object> dataMap = GetSessionData(session);
+            var dataMap = GetSessionData(session);
             if (dataMap.ContainsKey(dataName)) return dataMap[dataName];
             else return null;
         }

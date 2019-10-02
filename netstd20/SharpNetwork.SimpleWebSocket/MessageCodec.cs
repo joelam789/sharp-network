@@ -312,10 +312,13 @@ namespace SharpNetwork.SimpleWebSocket
                             }
                         }
 
-                        var incomingHeaders = WebMessage.GetIncomingHeaders(session);
-                        incomingHeaders.Clear();
-                        foreach (var headerItem in netMsg.Headers)
-                            incomingHeaders.Add(headerItem.Key, headerItem.Value);
+                        //var incomingHeaders = WebMessage.GetIncomingHeaders(session);
+                        //incomingHeaders.Clear();
+                        //foreach (var headerItem in netMsg.Headers)
+                        //    incomingHeaders.Add(headerItem.Key, headerItem.Value);
+
+                        var incomingHeaders = new Dictionary<string, string>(netMsg.Headers);
+                        WebMessage.SetIncomingHeaders(session, incomingHeaders);
 
                         if (acceptKey != null && acceptKey.Length > 0) 
                             handshakeMsg = String.Format(WEBSOCK_HANDSHAKE_REPLY_MSG, acceptKey);

@@ -207,10 +207,19 @@ namespace SharpNetwork.SimpleHttp
                         }
                     }
 
-                    var incomingHeaders = HttpMessage.GetIncomingHeaders(session);
-                    incomingHeaders.Clear();
-                    foreach (var headerItem in netMsg.Headers)
-                        incomingHeaders.Add(headerItem.Key, headerItem.Value);
+                    //var incomingHeaders = HttpMessage.GetIncomingHeaders(session);
+                    //incomingHeaders.Clear();
+                    //foreach (var headerItem in netMsg.Headers)
+                    //    incomingHeaders.Add(headerItem.Key, headerItem.Value);
+
+                    var incomingHeaders = new Dictionary<string, string>(netMsg.Headers);
+                    HttpMessage.SetIncomingHeaders(session, incomingHeaders);
+
+                    var reqUrlInfo = new Dictionary<string, string>();
+                    reqUrlInfo.Add("Method", netMsg.RequestMethod);
+                    reqUrlInfo.Add("Path", netMsg.RequestUrl);
+                    reqUrlInfo.Add("Version", netMsg.ProtocolVersion);
+                    HttpMessage.SetRequestUrlInfo(session, reqUrlInfo);
 
                     if (netMsg.Headers.ContainsKey(HTTP_CONTENT_LEN))
                     {
