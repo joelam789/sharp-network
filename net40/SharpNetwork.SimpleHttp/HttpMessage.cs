@@ -13,8 +13,8 @@ namespace SharpNetwork.SimpleHttp
         public const int WEB_MSG_BUF_CODE = -1;
         public const int WEB_MSG_DATA_CODE = -2;
         public const int WEB_MSG_TASK_CODE = -3;
-        public const int WEB_MSG_HEADER_CODE = -4;
-        public const int WEB_MSG_URL_INFO_CODE = -5;
+        //public const int WEB_MSG_HEADER_CODE = -4;
+        //public const int WEB_MSG_URL_INFO_CODE = -5;
 
         public const int STATE_WAIT_FOR_HEADER = 0;
         public const int STATE_WAIT_FOR_BODY = 1;
@@ -232,6 +232,7 @@ namespace SharpNetwork.SimpleHttp
             return result;
         }
 
+        /*
         public static Dictionary<string, string> GetIncomingHeaders(Session session, bool needCheck = false)
         {
             Dictionary<string, string> result = null;
@@ -337,6 +338,7 @@ namespace SharpNetwork.SimpleHttp
                 attrMap[WEB_MSG_URL_INFO_CODE] = info;
             }
         }
+        */
 
         public static void SetSessionData(Session session, string dataName, object dataValue)
         {

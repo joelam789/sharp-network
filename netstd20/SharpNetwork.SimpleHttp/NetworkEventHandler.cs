@@ -72,8 +72,8 @@ namespace SharpNetwork.SimpleHttp
         {
             HttpMessage.GetSessionBuffer(session, true);
             HttpMessage.GetSessionData(session, true);
-            HttpMessage.GetIncomingHeaders(session, true);
-            HttpMessage.GetRequestUrlInfo(session, true);
+            //HttpMessage.GetIncomingHeaders(session, true);
+            //HttpMessage.GetRequestUrlInfo(session, true);
 
             // one factory for one session
             if (IsOrderlyProcess) HttpMessage.GetSingleTaskFactory(session, true);

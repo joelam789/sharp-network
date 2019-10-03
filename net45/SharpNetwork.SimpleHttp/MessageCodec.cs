@@ -212,14 +212,16 @@ namespace SharpNetwork.SimpleHttp
                     //foreach (var headerItem in netMsg.Headers)
                     //    incomingHeaders.Add(headerItem.Key, headerItem.Value);
 
-                    var incomingHeaders = new Dictionary<string, string>(netMsg.Headers);
-                    HttpMessage.SetIncomingHeaders(session, incomingHeaders);
+                    //var incomingHeaders = new Dictionary<string, string>(netMsg.Headers);
+                    //HttpMessage.SetIncomingHeaders(session, incomingHeaders);
 
-                    var reqUrlInfo = new Dictionary<string, string>();
-                    reqUrlInfo.Add("Method", netMsg.RequestMethod);
-                    reqUrlInfo.Add("Path", netMsg.RequestUrl);
-                    reqUrlInfo.Add("Version", netMsg.ProtocolVersion);
-                    HttpMessage.SetRequestUrlInfo(session, reqUrlInfo);
+                    //var reqUrlInfo = new Dictionary<string, string>();
+                    //reqUrlInfo.Add("Method", netMsg.RequestMethod);
+                    //reqUrlInfo.Add("Path", netMsg.RequestUrl);
+                    //reqUrlInfo.Add("Version", netMsg.ProtocolVersion);
+                    //HttpMessage.SetRequestUrlInfo(session, reqUrlInfo);
+
+                    HttpMessage.SetSessionData(session, "Path", netMsg.RequestUrl);
 
                     if (netMsg.Headers.ContainsKey(HTTP_CONTENT_LEN))
                     {

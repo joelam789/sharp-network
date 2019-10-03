@@ -89,7 +89,7 @@ namespace SharpNetwork.SimpleWebSocket
         {
             WebMessage.GetSessionBuffer(session, true);
             WebMessage.GetSessionData(session, true);
-            WebMessage.GetIncomingHeaders(session, true);
+            //WebMessage.GetIncomingHeaders(session, true);
 
             if (IsOrderlyProcess) WebMessage.GetSingleTaskFactory(session, true);
 
