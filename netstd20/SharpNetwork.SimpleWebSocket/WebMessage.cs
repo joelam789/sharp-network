@@ -325,9 +325,8 @@ namespace SharpNetwork.SimpleWebSocket
         public static void SetSessionData(Session session, string dataName, object dataValue)
         {
             var dataMap = GetSessionData(session);
-            object oldValue = null;
-            if (dataMap.ContainsKey(dataName)) dataMap.TryRemove(dataName, out oldValue);
-            dataMap.TryAdd(dataName, dataValue);
+            if (dataMap.ContainsKey(dataName)) dataMap[dataName] = dataValue;
+            else dataMap.TryAdd(dataName, dataValue);
         }
 
         public static object GetSessionData(Session session, string dataName)

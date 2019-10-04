@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 
@@ -245,9 +246,9 @@ namespace SharpNetwork.SimpleProtocol
             return result;
         }
 
-        public static Dictionary<string, object> GetSessionData(Session session, bool needCheck = false)
+        public static ConcurrentDictionary<string, object> GetSessionData(Session session, bool needCheck = false)
         {
-            Dictionary<string, object> result = null;
+            ConcurrentDictionary<string, object> result = null;
             Dictionary<int, object> attrMap = session.GetAttributes();
 
             if (needCheck)
@@ -256,19 +257,19 @@ namespace SharpNetwork.SimpleProtocol
                 {
                     if (attrMap.ContainsKey(NET_MSG_DATA_CODE))
                     {
-                        result = attrMap[NET_MSG_DATA_CODE] as Dictionary<string, object>;
+                        result = attrMap[NET_MSG_DATA_CODE] as ConcurrentDictionary<string, object>;
                         if (result == null) attrMap.Remove(NET_MSG_DATA_CODE);
                     }
                     if (result == null)
                     {
-                        result = new Dictionary<string, object>();
+                        result = new ConcurrentDictionary<string, object>();
                         attrMap.Add(NET_MSG_DATA_CODE, result);
                     }
                 }
             }
             else
             {
-                result = attrMap[NET_MSG_DATA_CODE] as Dictionary<string, object>;
+                result = attrMap[NET_MSG_DATA_CODE] as ConcurrentDictionary<string, object>;
             }
 
             return result;
@@ -276,14 +277,14 @@ namespace SharpNetwork.SimpleProtocol
 
         public static void SetSessionData(Session session, string dataName, object dataValue)
         {
-            Dictionary<string, object> dataMap = GetSessionData(session);
-            if (dataMap.ContainsKey(dataName)) dataMap.Remove(dataName);
-            dataMap.Add(dataName, dataValue);
+            var dataMap = GetSessionData(session);
+            if (dataMap.ContainsKey(dataName)) dataMap[dataName] = dataValue;
+            else dataMap.TryAdd(dataName, dataValue);
         }
 
         public static object GetSessionData(Session session, string dataName)
         {
-            Dictionary<string, object> dataMap = GetSessionData(session);
+            var dataMap = GetSessionData(session);
             if (dataMap.ContainsKey(dataName)) return dataMap[dataName];
             else return null;
         }
