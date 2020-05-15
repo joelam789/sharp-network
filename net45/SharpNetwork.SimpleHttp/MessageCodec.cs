@@ -17,20 +17,25 @@ namespace SharpNetwork.SimpleHttp
         public const string HTTP_CONTENT_LEN = "Content-Length";
         public const string HTTP_CONNECTION = "Connection";
 
+        public string DefaultContentType { get; set; }
+
         private Dictionary<string, string> m_CustomHeaders = null;
 
         public MessageCodec(int maxMsgSize = 0)
         {
+            DefaultContentType = "text/plain; charset=utf-8";
             if (maxMsgSize > 0) m_MaxMsgSize = maxMsgSize;
         }
 
         public MessageCodec(IDictionary<string, string> customHeaders)
         {
+            DefaultContentType = "text/plain; charset=utf-8";
             if (customHeaders != null) m_CustomHeaders = new Dictionary<string, string>(customHeaders);
         }
 
         public MessageCodec(int maxMsgSize, IDictionary<string, string> customHeaders)
         {
+            DefaultContentType = "text/plain; charset=utf-8";
             if (maxMsgSize > 0) m_MaxMsgSize = maxMsgSize;
             if (customHeaders != null) m_CustomHeaders = new Dictionary<string, string>(customHeaders);
         }
@@ -223,6 +228,9 @@ namespace SharpNetwork.SimpleHttp
 
                     HttpMessage.SetSessionData(session, "Path", netMsg.RequestUrl);
 
+                    if (!netMsg.Headers.ContainsKey(HTTP_CONTENT_TYPE))
+                        netMsg.Headers.Add(HTTP_CONTENT_TYPE, DefaultContentType); // add default one...
+
                     if (netMsg.Headers.ContainsKey(HTTP_CONTENT_LEN))
                     {
                         netMsg.ContentSize = Convert.ToInt32(netMsg.Headers[HTTP_CONTENT_LEN]);
@@ -231,8 +239,11 @@ namespace SharpNetwork.SimpleHttp
                     if (netMsg.Headers.ContainsKey(HTTP_CONTENT_TYPE))
                     {
                         var ctype = netMsg.Headers[HTTP_CONTENT_TYPE].ToLower();
-                        if (ctype.Contains("text")) netMsg.MessageType = HttpMessage.MSG_TYPE_STRING;
-                        else if (ctype.Contains("stream")) netMsg.MessageType = HttpMessage.MSG_TYPE_BINARY;
+                        if (ctype.Contains("text") || ctype.Contains("urlencoded") 
+                            || ctype.Contains("json") || ctype.Contains("xml") || ctype.Contains("html"))
+                            netMsg.MessageType = HttpMessage.MSG_TYPE_STRING;
+                        //else if (ctype.Contains("stream")) netMsg.MessageType = HttpMessage.MSG_TYPE_BINARY;
+                        else netMsg.MessageType = HttpMessage.MSG_TYPE_BINARY;
                     }
 
                     stream.Position = orgpos + checkedlen;
