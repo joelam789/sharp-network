@@ -17,10 +17,11 @@ namespace SharpNetwork.Core
         public const int ERROR_CODEC   = 8;
         public const int ERROR_PROCESS = 16;
 
-        public const int IO_ANY     = 0;
+        public const int IO_NONE    = 0;
         public const int IO_RECEIVE = 1;
         public const int IO_SEND    = 2;
-        public const int IO_BOTH    = 3;
+        public const int IO_ANY     = 3;
+        public const int IO_BOTH    = 4;
 
         public const int ACT_KEEP_DEFAULT = 0;
         public const int ACT_KEEP_OLD     = 1;
@@ -787,7 +788,7 @@ namespace SharpNetwork.Core
                 {
                     try
                     {
-                        // isIdle is true, so idleFlag > 0 (IO_RECEIVE/IO_SEND/IO_BOTH)
+                        // isIdle is true, so idleFlag > 0 (IO_RECEIVE/IO_SEND/IO_ANY/IO_BOTH)
                         m_IoHandler.OnIdle(this, idleFlag);
                     }
                     catch { }

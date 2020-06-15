@@ -127,7 +127,16 @@ namespace SharpNetwork.Core
 
         public virtual void OnIdle(Session session, Int32 optype)
         {
-            if (m_Events != null) m_Events.FireIdleEvent(session, optype);
+            //if (m_Events != null) m_Events.FireIdleEvent(session, optype);
+
+            try
+            {
+                if (m_Events != null) m_Events.FireIdleEvent(session, optype);
+            }
+            finally
+            {
+                if (session != null) session.Close(); // we should close idle session by default
+            }
         }
 
         public virtual void OnError(Session session, Int32 errortype, Exception error)
