@@ -443,16 +443,9 @@ namespace SharpNetwork.SimpleHttp
             return str;
         }
 
-        public static void Send<TMessage>(Session session, TMessage obj, IDictionary<string, string> headers = null) where TMessage : class
+        public static void Send(Session session, string str, IDictionary<string, string> headers = null, int statusCode = 0, string reasonPhrase = null)
         {
-            var msg = new HttpMessage(HttpMessage.ToJsonString<TMessage>(obj));
-            if (headers != null) msg.SetHeaders(headers);
-            session.Send(msg);
-        }
-
-        public static void Send(Session session, string str, IDictionary<string, string> headers = null)
-        {
-            var msg = new HttpMessage(str);
+            var msg = statusCode > 0 && reasonPhrase != null ? new HttpMessage(statusCode, reasonPhrase, str) : new HttpMessage(str);
             if (headers != null) msg.SetHeaders(headers);
             session.Send(msg);
         }
