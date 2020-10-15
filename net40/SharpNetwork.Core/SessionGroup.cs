@@ -68,7 +68,7 @@ namespace SharpNetwork.Core
 
         private void CheckIdleSessions()
         {
-            while (m_IdleType >= 0 && m_IdleTime > 0)
+            while (m_IdleType >= 0 && m_IdleTime > 0 && m_NeedCheckIdle)
             {
                 Dictionary<Int32, Session> sessions = GetSessions();
                 if (sessions != null && sessions.Count > 0)
@@ -86,7 +86,14 @@ namespace SharpNetwork.Core
 
                 if (!m_NeedCheckIdle) break;
 
-                if (m_IdleTime > 0) Thread.Sleep(m_IdleTime * 1000);
+                try
+                {
+                    if (m_IdleTime > 0) Thread.Sleep(m_IdleTime * 1000);
+                }
+                catch
+                {
+                    break; // should be terminated by Interrupt or Abort ...
+                }
 
                 if (!m_NeedCheckIdle) break;
             }
@@ -114,7 +121,7 @@ namespace SharpNetwork.Core
 
                 if (m_CheckIdleThread != null)
                 {
-                    m_CheckIdleThread.Abort();
+                    m_CheckIdleThread.Interrupt();
                     m_CheckIdleThread.Join();
                     m_CheckIdleThread = null;
                 }
@@ -127,7 +134,7 @@ namespace SharpNetwork.Core
                 {
                     if (m_CheckIdleThread != null)
                     {
-                        m_CheckIdleThread.Abort();
+                        m_CheckIdleThread.Interrupt();
                         m_CheckIdleThread.Join();
                         m_CheckIdleThread = null;
 
@@ -173,7 +180,7 @@ namespace SharpNetwork.Core
 
             if (m_CheckIdleThread != null)
             {
-                m_CheckIdleThread.Abort();
+                m_CheckIdleThread.Interrupt();
                 m_CheckIdleThread.Join();
                 m_CheckIdleThread = null;
             }
